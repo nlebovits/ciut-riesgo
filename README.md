@@ -23,6 +23,18 @@ Para actualizar el archivo de bloqueo:
 uv lock
 ```
 
+3. Configura las credenciales:
+
+Coloca tu clave de servicio de Google Cloud Storage en el directorio `credentials/`.
+
+4. Configura las variables de entorno:
+
+```bash
+cp .env.example .env
+```
+
+Edita el archivo `.env` con tus credenciales. Consulta `.env.example` para ver la estructura requerida.
+
 ## Licencia
 
 Este proyecto está licenciado bajo [GNU General Public License](LICENSE).
