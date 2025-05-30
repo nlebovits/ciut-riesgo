@@ -4,8 +4,6 @@ Un código base para analizar el riesgo de inundación en el Partido de La Plata
 
 ## Software Requerido
 
-Cambio!
-
 Instala el software en el siguiente orden:
 
 1. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) y [VSCode](https://code.visualstudio.com/download) - Para clonar y editar el repositorio
@@ -69,6 +67,20 @@ cp .env.example .env
 ```
 
 Edita el archivo `.env` con tus credenciales. Consulta `.env.example` para ver la estructura requerida.
+
+## Recursos para Aprender GIS en Python
+
+Para aprender más sobre el análisis geoespacial en Python, te recomendamos los siguientes recursos (en orden de complejidad):
+
+1. [Introduction to Geospatial Raster and Vector Data with Python](https://carpentries-incubator.github.io/geospatial-python/) - Un excelente punto de partida que cubre los conceptos básicos de datos raster y vectoriales.
+
+2. [PyGIS](https://pygis.io/docs/a_intro.html) - Una guía completa pero accesible para principiantes sobre programación espacial en Python.
+
+3. [Geocomputation with Python](https://py.geocompx.org/) - Un recurso más técnico y detallado que PyGIS, ideal para profundizar en el análisis espacial.
+
+4. [Geographic Data Science with Python](https://geographicdata.science/book/intro.html) - El recurso más avanzado técnicamente, excelente para análisis espacial avanzado y ciencia de datos geoespaciales.
+
+*Nota: Actualmente estoy trabajando en compilar recursos en español.*
 
 ## Licencia
 
