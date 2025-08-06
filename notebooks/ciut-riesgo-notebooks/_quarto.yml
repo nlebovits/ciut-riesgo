@@ -1,0 +1,36 @@
+project:
+  type: book
+  output-dir: docs
+
+book:
+  title: "CIUT Riesgo Análisis"
+  author: "Celeste Duarte y Nissim Lebovits"
+  date: today
+  chapters:
+    - index.qmd
+    - intro.qmd
+    - summary.qmd
+    - renabap.qmd
+    - references.qmd
+format: 
+  html:
+    theme: cosmo
+    embed-resources: true
+    toc: true
+    toc_float: true
+    code-fold: true
+    code-summary: "Mostrar el código"
+    fontsize: "11"
+editor: source
+editor_options:
+  markdown:
+    wrap: sentence
+execute:
+  warning: false
+  error: false
+  messages: false
+  echo: true
+  cache: false
+
+bibliography: references.bib
+
