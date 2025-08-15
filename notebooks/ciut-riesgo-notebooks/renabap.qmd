@@ -78,9 +78,6 @@ renabap_pba_intersect = renabap_pba_intersect[renabap_pba_intersect.geometry.is_
 ### Interpolación areal
 
 ```{python}
-import geopandas as gpd
-from tobler.area_weighted import area_interpolate
-
 # Ensure both GeoDataFrames have the same CRS
 if renabap_pba_intersect.crs != peligro.crs:
     peligro = peligro.to_crs(renabap_pba_intersect.crs)
@@ -88,68 +85,65 @@ if renabap_pba_intersect.crs != peligro.crs:
 # Get unique hazard levels
 hazard_levels = peligro["PELIGROSID"].unique()
 
-# Initialize output columns in renabap_pba_intersect
+# Initialize result columns
+renabap_with_porciones = renabap_pba_intersect.copy()
 for level in hazard_levels:
-    renabap_pba_intersect[f"porcion_{level}"] = 0.0
+    renabap_with_porciones[f"porcion_{level}"] = 0.0
 
-# For each hazard level, calculate the portion of each barrio that falls within it
-for level in hazard_levels:
-    # Filter hazard polygons for this level
-    hazard_subset = peligro[peligro["PELIGROSID"] == level].copy()
+# Calculate total area of each barrio
+renabap_with_porciones['total_area'] = renabap_with_porciones.geometry.area
 
-    if not hazard_subset.empty:
-        # Add dummy variable with value 1 for each hazard polygon
-        hazard_subset["hazard_area"] = 1
+# For each barrio, calculate intersection with each hazard level
+for idx, barrio in renabap_with_porciones.iterrows():
+    barrio_geom = barrio.geometry
+    barrio_total_area = barrio_geom.area
+    
+    if barrio_total_area == 0:
+        continue
+        
+    for level in hazard_levels:
+        hazard_subset = peligro[peligro["PELIGROSID"] == level]
+        
+        if hazard_subset.empty:
+            continue
+        
+        # Calculate intersection area
+        intersection_area = 0
+        for _, hazard_row in hazard_subset.iterrows():
+            try:
+                intersection = barrio_geom.intersection(hazard_row.geometry)
+                if not intersection.is_empty:
+                    intersection_area += intersection.area
+            except Exception as e:
+                print(f"Error calculating intersection for {barrio.get('nombre_barrio', idx)}: {e}")
+                continue
+        
+        # Calculate proportion
+        proportion = intersection_area / barrio_total_area if barrio_total_area > 0 else 0
+        renabap_with_porciones.at[idx, f"porcion_{level}"] = proportion
 
-        # Interpolate hazard area to barrios (this gives us the proportion)
-        results = area_interpolate(
-            source_df=hazard_subset,
-            target_df=renabap_pba_intersect,
-            extensive_variables=["hazard_area"],
-        )
+# Create tidy format dataframe
+renabap_tidy = []
 
-        # This gives us the portion of each barrio that overlaps with this hazard level
-        renabap_pba_intersect[f"porcion_{level}"] = results["hazard_area"]
+for idx, row in renabap_with_porciones.iterrows():
+    for level in hazard_levels:
+        familias_expuestas = row[f"porcion_{level}"] * row["familias_aproximadas"]
+        
+        renabap_tidy.append({
+            "id_renabap": row["id_renabap"],
+            "nombre_barrio": row["nombre_barrio"],
+            "peligrosidad": level,
+            "fam_expuestas_areal": familias_expuestas
+        })
 
-# Calculate families exposed to each hazard level
-for level in hazard_levels:
-    renabap_pba_intersect[f"familias_expuestas_{level}"] = (
-        renabap_pba_intersect[f"porcion_{level}"]
-        * renabap_pba_intersect["familias_aproximadas"]
-    )
+renabap_tidy = pd.DataFrame(renabap_tidy)
 
-# Create tidy dataframe with the three required columns
-renabap_tidy = renabap_pba_intersect[["nombre_barrio"]].copy()
-
-# Calculate total familias_expuestas
-renabap_tidy["fam_expuestas_areal"] = (
-    renabap_pba_intersect["familias_expuestas_alta"]
-    + renabap_pba_intersect["familias_expuestas_baja"]
-    + renabap_pba_intersect["familias_expuestas_media"]
-)
-
-# Determine highest hazard level (peligrosidad)
-def get_highest_hazard(row):
-    exposures = [
-        row["familias_expuestas_alta"],
-        row["familias_expuestas_baja"],
-        row["familias_expuestas_media"],
-    ]
-    hazard_levels = ["alta", "baja", "media"]
-    return hazard_levels[exposures.index(max(exposures))]
-
-renabap_tidy["peligrosidad"] = renabap_pba_intersect.apply(get_highest_hazard, axis=1)
-
-# Round fam_expuestas_areal
-renabap_tidy["fam_expuestas_areal"] = renabap_tidy["fam_expuestas_areal"].round(2)
+print(renabap_tidy.head())
 ```
 
 ### Mapeo dasymetrico con datos GHSL
 
 ```{python}
-
-
-import rasterstats
 import rioxarray
 from shapely.geometry import box
 
@@ -173,6 +167,11 @@ ghsl_clipped = ghsl.rio.clip(
 )
 
 
+import rasterstats
+
+# Step 1: Calculate the total GHSL population per barrio popular using zonal statistics
+print("Calculating GHSL population totals per barrio popular...")
+
 # Convert to the format expected by rasterstats
 geometries = [geom for geom in renabap_pba_intersect.geometry]
 
@@ -190,7 +189,6 @@ ghsl_totals = [stat["sum"] if stat["sum"] is not None else 0 for stat in stats]
 
 # Add the GHSL population estimates as a new column
 renabap_pba_intersect["ghsl_pop_est"] = ghsl_totals
-
 
 from rasterio.features import rasterize
 import numpy as np
@@ -235,23 +233,6 @@ familias_raster = rasterize(
     all_touched=False,
 )
 
-# Step 1: Divide original GHSL by the barrio-level GHSL to get fractional population
-# Handle division by zero and nodata values properly
-mask = (ghsl_clipped.values[0] > 0) & (ghsl_pop_raster > 0.1)
-ghsl_fractional = np.full_like(ghsl_clipped.values[0], -200, dtype=np.float64)
-ghsl_fractional[mask] = ghsl_clipped.values[0][mask] / ghsl_pop_raster[mask]
-
-# Step 2: Multiply fractional population by familias aproximadas to get downscaled data
-mask2 = (ghsl_fractional > 0) & (familias_raster > 0)
-familias_downscaled = np.full_like(ghsl_clipped.values[0], -200, dtype=np.float64)
-familias_downscaled[mask2] = ghsl_fractional[mask2] * familias_raster[mask2]
-
-
-# Check that the sum of downscaled familias equals the original familias aproximadas
-total_original_familias = renabap_pba_intersect["familias_aproximadas"].sum()
-valid_downscaled = familias_downscaled[familias_downscaled != -200]
-total_downscaled_familias = np.sum(valid_downscaled)
-
 
 # Step 1: Divide original GHSL by the barrio-level GHSL to get fractional population
 # Use masking to avoid division on invalid cells
@@ -293,13 +274,15 @@ for idx, row in settlement_hazard.iterrows():
 
     ghsl_tidy.append(
         {
-            "nombre_barrio": row["nombre_barrio"],
+            "id_renabap": row["id_renabap"],
             "peligrosidad": row["PELIGROSID"],
             "fam_expuestas_ghsl": stats["sum"] if stats["sum"] is not None else 0,
         }
     )
 
 ghsl_tidy = pd.DataFrame(ghsl_tidy)
+
+print(ghsl_tidy.head())
 ```
 
 ### Estimaciones según cantidad de edificios
@@ -383,7 +366,7 @@ buildings_hazard = gpd.overlay(buildings_proj, settlement_hazard, how="intersect
 
 # Count buildings per settlement-hazard combination
 buildings_per_hazard = (
-    buildings_hazard.groupby(["nombre_barrio", "PELIGROSID"])
+    buildings_hazard.groupby(["id_renabap", "PELIGROSID"])
     .size()
     .reset_index(name="buildings_count")
 )
@@ -393,14 +376,14 @@ buildings_settlement = gpd.overlay(
     buildings_proj, renabap_pba_intersect, how="intersection"
 )
 total_buildings_per_settlement = (
-    buildings_settlement.groupby("nombre_barrio")
+    buildings_settlement.groupby("id_renabap")
     .size()
     .reset_index(name="total_buildings")
 )
 
 # Step 3: Merge and calculate ratios
 hazard_ratios = buildings_per_hazard.merge(
-    total_buildings_per_settlement, on="nombre_barrio", how="left"
+    total_buildings_per_settlement, on="id_renabap", how="left"
 )
 hazard_ratios["building_ratio"] = (
     hazard_ratios["buildings_count"] / hazard_ratios["total_buildings"]
@@ -408,12 +391,12 @@ hazard_ratios["building_ratio"] = (
 
 # Step 4: Get total population per settlement and apply ratios
 settlement_population = renabap_pba_intersect[
-    ["nombre_barrio", "familias_aproximadas"]
+    ["id_renabap", "familias_aproximadas"]
 ].copy()
 
 # Merge with ratios and calculate population estimates
 population_estimates = hazard_ratios.merge(
-    settlement_population, on="nombre_barrio", how="left"
+    settlement_population, on="id_renabap", how="left"
 )
 population_estimates["estimated_population_hazard"] = (
     population_estimates["building_ratio"]
@@ -422,7 +405,7 @@ population_estimates["estimated_population_hazard"] = (
 
 # Step 5: Create final results with totals
 final_results = population_estimates[
-    ["nombre_barrio", "PELIGROSID", "estimated_population_hazard"]
+    ["id_renabap", "PELIGROSID", "estimated_population_hazard"]
 ].copy()
 
 # Add total population rows (no hazard breakdown)
@@ -434,14 +417,14 @@ total_pop_rows["estimated_population_hazard"] = total_pop_rows["familias_aproxim
 final_results = pd.concat(
     [
         final_results,
-        total_pop_rows[["nombre_barrio", "PELIGROSID", "estimated_population_hazard"]],
+        total_pop_rows[["id_renabap", "PELIGROSID", "estimated_population_hazard"]],
     ],
     ignore_index=True,
 )
 
 # Create buildings tidy dataframe with matching structure
 buildings_tidy = final_results[
-    ["nombre_barrio", "PELIGROSID", "estimated_population_hazard"]
+    ["id_renabap", "PELIGROSID", "estimated_population_hazard"]
 ].copy()
 
 # Rename columns to match the structure
@@ -454,17 +437,19 @@ buildings_tidy = buildings_tidy.rename(
 
 # Filter out the 'total' rows since we only want hazard-specific data
 buildings_tidy = buildings_tidy[buildings_tidy["peligrosidad"] != "total"].copy()
+
+print(buildings_tidy.head())
 ```
 
 ### Comparación de resultados
 
 ```{python}
-# Join all three dataframes by nombre_barrio and peligrosidad
+# Join all three dataframes by id_renabap and peligrosidad
 final_df = renabap_tidy.merge(
-    ghsl_tidy, on=["nombre_barrio", "peligrosidad"], how="outer"
+    ghsl_tidy, on=["id_renabap", "peligrosidad"], how="outer"
 )
 final_df = final_df.merge(
-    buildings_tidy, on=["nombre_barrio", "peligrosidad"], how="outer"
+    buildings_tidy, on=["id_renabap", "peligrosidad"], how="outer"
 )
 
 # Impute 0s for NA values in fam_expuestas columns
@@ -478,7 +463,7 @@ final_tidy = []
 for _, row in renabap_tidy.iterrows():
     final_tidy.append(
         {
-            "nombre_barrio": row["nombre_barrio"],
+            "id_renabap": row["id_renabap"],
             "peligrosidad": row["peligrosidad"],
             "metodo": "area",
             "fam_expuestas": row["fam_expuestas_areal"],
@@ -489,7 +474,7 @@ for _, row in renabap_tidy.iterrows():
 for _, row in ghsl_tidy.iterrows():
     final_tidy.append(
         {
-            "nombre_barrio": row["nombre_barrio"],
+            "id_renabap": row["id_renabap"],
             "peligrosidad": row["peligrosidad"],
             "metodo": "ghsl",
             "fam_expuestas": row["fam_expuestas_ghsl"],
@@ -500,7 +485,7 @@ for _, row in ghsl_tidy.iterrows():
 for _, row in buildings_tidy.iterrows():
     final_tidy.append(
         {
-            "nombre_barrio": row["nombre_barrio"],
+            "id_renabap": row["id_renabap"],
             "peligrosidad": row["peligrosidad"],
             "metodo": "edificios",
             "fam_expuestas": row["fam_expuestas_edificios"],
@@ -511,18 +496,18 @@ final_tidy = pd.DataFrame(final_tidy)
 
 # Aggregate to get one observation per barrio per hazard level per method
 final_tidy = (
-    final_tidy.groupby(["nombre_barrio", "peligrosidad", "metodo"])["fam_expuestas"]
+    final_tidy.groupby(["id_renabap", "peligrosidad", "metodo"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
 
 # Create complete combination of all barrios, hazard levels, and methods
-all_barrios = final_tidy["nombre_barrio"].unique()
+all_barrios = final_tidy["id_renabap"].unique()
 all_hazard_levels = ["alta", "baja", "media"]
 all_methods = ["area", "ghsl", "edificios"]
 
 complete_combinations = pd.DataFrame([
-    {"nombre_barrio": barrio, "peligrosidad": hazard, "metodo": method}
+    {"id_renabap": barrio, "peligrosidad": hazard, "metodo": method}
     for barrio in all_barrios
     for hazard in all_hazard_levels
     for method in all_methods
@@ -530,10 +515,15 @@ complete_combinations = pd.DataFrame([
 
 # Merge with actual data and fill missing values with 0
 final_tidy = complete_combinations.merge(
-    final_tidy, on=["nombre_barrio", "peligrosidad", "metodo"], how="left"
+    final_tidy, on=["id_renabap", "peligrosidad", "metodo"], how="left"
 )
 final_tidy["fam_expuestas"] = final_tidy["fam_expuestas"].fillna(0)
 
+print(final_tidy.head(10))
+print(f"Shape: {final_tidy.shape}")
+```
+
+```{python}
 # Calculate total exposure per hazard level per method
 summary = (
     final_tidy.groupby(["peligrosidad", "metodo"])["fam_expuestas"]
@@ -545,7 +535,9 @@ summary = (
 print("Total Familias Expuestas por Peligrosidad y Método:")
 print("=" * 50)
 print(summary.round(2))
+```
 
+```{python}
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -554,7 +546,7 @@ alta_data = final_tidy[final_tidy["peligrosidad"] == "alta"].copy()
 
 # Calculate total exposure per barrio across all methods
 total_exposure = (
-    alta_data.groupby("nombre_barrio")["fam_expuestas"]
+    alta_data.groupby("id_renabap")["fam_expuestas"]
     .sum()
     .sort_values(ascending=False)
 )
@@ -562,7 +554,7 @@ top_25_barrios = total_exposure.head(25).index
 
 # Filter data for top 25 barrios
 top_25_data = alta_data[
-    alta_data["nombre_barrio"].isin(top_25_barrios)
+    alta_data["id_renabap"].isin(top_25_barrios)
 ].copy()
 
 # Create range plot showing min, max, and individual points
@@ -572,7 +564,7 @@ plt.figure(figsize=(15, 10))
 method_colors = {"area": "blue", "ghsl": "red", "edificios": "green"}
 
 for i, barrio in enumerate(top_25_barrios):
-    barrio_data = top_25_data[top_25_data["nombre_barrio"] == barrio]
+    barrio_data = top_25_data[top_25_data["id_renabap"] == barrio]
     if len(barrio_data) > 0:
         values = barrio_data["fam_expuestas"].values
         min_val = values.min()
@@ -588,7 +580,7 @@ for i, barrio in enumerate(top_25_barrios):
 
 plt.yticks(range(len(top_25_barrios)), top_25_barrios)
 plt.xlabel("Familias Expuestas")
-plt.ylabel("Barrio")
+plt.ylabel("Barrio ID")
 plt.title("Range of High Exposure Estimates for Top 25 Barrios", fontsize=14)
 plt.grid(True, alpha=0.3)
 
@@ -609,9 +601,132 @@ plt.legend(handles=legend_elements, title="Método")
 
 plt.tight_layout()
 plt.show()
+
 ```
 
+```{python}
+# Calculate range of exposure estimates for each barrio and risk level
+exposure_ranges = []
 
+for barrio_id in final_tidy["id_renabap"].unique():
+    for riesgo in ["alta", "baja", "media"]:
+        # Get all method estimates for this barrio and risk level
+        barrio_riesgo_data = final_tidy[
+            (final_tidy["id_renabap"] == barrio_id) & 
+            (final_tidy["peligrosidad"] == riesgo)
+        ]
+        
+        if len(barrio_riesgo_data) > 0:
+            # Calculate range (max - min)
+            exposure_values = barrio_riesgo_data["fam_expuestas"].values
+            exposure_range = exposure_values.max() - exposure_values.min()
+            
+            # Get barrio name for reference
+            barrio_name = barrio_riesgo_data["nombre_barrio"].iloc[0] if "nombre_barrio" in barrio_riesgo_data.columns else f"ID_{barrio_id}"
+            
+            exposure_ranges.append({
+                "id_renabap": barrio_id,
+                "nombre_barrio": barrio_name,
+                "peligrosidad": riesgo,
+                "exposure_range": exposure_range,
+                "min_exposure": exposure_values.min(),
+                "max_exposure": exposure_values.max(),
+                "mean_exposure": exposure_values.mean(),
+                "std_exposure": exposure_values.std()
+            })
+
+exposure_ranges_df = pd.DataFrame(exposure_ranges)
+
+# Report distributions of exposure ranges by risk level
+print("=== DISTRIBUTION OF EXPOSURE RANGES BY RISK LEVEL ===")
+print("=" * 60)
+
+for riesgo in ["alta", "baja", "media"]:
+    riesgo_data = exposure_ranges_df[exposure_ranges_df["peligrosidad"] == riesgo]
+    
+    print(f"\n{riesgo.upper()} PELIGROSIDAD:")
+    print(f"  Number of barrios: {len(riesgo_data)}")
+    print(f"  Range statistics:")
+    print(f"    Mean range: {riesgo_data['exposure_range'].mean():.2f}")
+    print(f"    Median range: {riesgo_data['exposure_range'].median():.2f}")
+    print(f"    Min range: {riesgo_data['exposure_range'].min():.2f}")
+    print(f"    Max range: {riesgo_data['exposure_range'].max():.2f}")
+    print(f"    Std range: {riesgo_data['exposure_range'].std():.2f}")
+    
+    # Show barrios with highest ranges
+    top_ranges = riesgo_data.nlargest(10, "exposure_range")
+    print(f"  Top 10 barrios with highest exposure ranges:")
+    for _, row in top_ranges.iterrows():
+        print(f"    {row['nombre_barrio']}: {row['exposure_range']:.2f} (min: {row['min_exposure']:.2f}, max: {row['max_exposure']:.2f})")
+
+# Overall summary
+print(f"\n" + "=" * 60)
+print("OVERALL SUMMARY")
+print("=" * 60)
+
+print(f"Total barrios analyzed: {exposure_ranges_df['id_renabap'].nunique()}")
+print(f"Total observations: {len(exposure_ranges_df)}")
+
+# Calculate overall statistics
+overall_stats = exposure_ranges_df.groupby("peligrosidad")["exposure_range"].agg([
+    "count", "mean", "median", "std", "min", "max"
+]).round(2)
+
+print(f"\nOverall exposure range statistics by risk level:")
+print(overall_stats)
+
+# Show barrios with highest overall ranges across all risk levels
+print(f"\nTop 15 barrios with highest exposure ranges across all risk levels:")
+top_overall = exposure_ranges_df.nlargest(15, "exposure_range")
+for _, row in top_overall.iterrows():
+    print(f"  {row['nombre_barrio']} ({row['peligrosidad']}): {row['exposure_range']:.2f}")
+
+# Create summary plots
+plt.figure(figsize=(15, 10))
+
+# Plot 1: Box plot of exposure ranges by risk level
+plt.subplot(2, 2, 1)
+exposure_ranges_df.boxplot(column="exposure_range", by="peligrosidad", ax=plt.gca())
+plt.title("Distribution of Exposure Ranges by Risk Level")
+plt.suptitle("")  # Remove default suptitle
+plt.ylabel("Exposure Range")
+
+# Plot 2: Histogram of exposure ranges
+plt.subplot(2, 2, 2)
+plt.hist(exposure_ranges_df["exposure_range"], bins=30, alpha=0.7, edgecolor="black")
+plt.title("Distribution of All Exposure Ranges")
+plt.xlabel("Exposure Range")
+plt.ylabel("Frequency")
+
+# Plot 3: Scatter plot of min vs max exposure
+plt.subplot(2, 2, 3)
+colors = {"alta": "red", "baja": "blue", "media": "orange"}
+for riesgo in ["alta", "baja", "media"]:
+    riesgo_data = exposure_ranges_df[exposure_ranges_df["peligrosidad"] == riesgo]
+    plt.scatter(riesgo_data["min_exposure"], riesgo_data["max_exposure"], 
+                c=colors[riesgo], label=riesgo.upper(), alpha=0.6)
+plt.xlabel("Minimum Exposure")
+plt.ylabel("Maximum Exposure")
+plt.title("Min vs Max Exposure by Risk Level")
+plt.legend()
+
+# Plot 4: Bar chart of mean ranges by risk level
+plt.subplot(2, 2, 4)
+mean_ranges = exposure_ranges_df.groupby("peligrosidad")["exposure_range"].mean()
+mean_ranges.plot(kind="bar", color=["red", "blue", "orange"])
+plt.title("Mean Exposure Range by Risk Level")
+plt.ylabel("Mean Exposure Range")
+plt.xticks(rotation=45)
+
+plt.tight_layout()
+plt.show()
+
+# Store the results
+print(f"\n" + "=" * 60)
+print("RESULTS STORED IN:")
+print("  exposure_ranges_df: DataFrame with exposure ranges for each barrio and risk level")
+print("=" * 60)
+```
 
 ## Conclusiones y Recomendaciones
 
