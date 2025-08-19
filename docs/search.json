@@ -10,33 +10,93 @@
     ]
   },
   {
-    "objectID": "intro.html",
-    "href": "intro.html",
-    "title": "1  Introduction",
+    "objectID": "exposicion.html",
+    "href": "exposicion.html",
+    "title": "1  Exposición",
     "section": "",
-    "text": "This is a book created from markdown and executable code.\nSee Knuth (1984) for additional discussion of literate programming.\n\n\n\n\nKnuth, Donald E. 1984. “Literate Programming.” Comput. J. 27 (2): 97–111. https://doi.org/10.1093/comjnl/27.2.97.",
+    "text": "1.1 Introducción a la Exposición\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
     "crumbs": [
-      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Introduction</span>"
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]
   },
   {
-    "objectID": "summary.html",
-    "href": "summary.html",
-    "title": "2  Summary",
-    "section": "",
-    "text": "In summary, this book has no content whatsoever.",
+    "objectID": "exposicion.html#análisis-de-exposición",
+    "href": "exposicion.html#análisis-de-exposición",
+    "title": "1  Exposición",
+    "section": "1.2 Análisis de Exposición",
+    "text": "1.2 Análisis de Exposición\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
     "crumbs": [
-      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Summary</span>"
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]
   },
   {
-    "objectID": "references.html",
-    "href": "references.html",
-    "title": "References",
-    "section": "",
-    "text": "Knuth, Donald E. 1984. “Literate Programming.” Comput.\nJ. 27 (2): 97–111. https://doi.org/10.1093/comjnl/27.2.97.",
+    "objectID": "exposicion.html#evaluación-de-riesgos",
+    "href": "exposicion.html#evaluación-de-riesgos",
+    "title": "1  Exposición",
+    "section": "1.3 Evaluación de Riesgos",
+    "text": "1.3 Evaluación de Riesgos\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
     "crumbs": [
-      "References"
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
+    ]
+  },
+  {
+    "objectID": "suavizacion.html",
+    "href": "suavizacion.html",
+    "title": "2  Suavización",
+    "section": "",
+    "text": "2.1 Conceptos de Suavización\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Suavización</span>"
+    ]
+  },
+  {
+    "objectID": "suavizacion.html#métodos-de-suavización",
+    "href": "suavizacion.html#métodos-de-suavización",
+    "title": "2  Suavización",
+    "section": "2.2 Métodos de Suavización",
+    "text": "2.2 Métodos de Suavización\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Suavización</span>"
+    ]
+  },
+  {
+    "objectID": "suavizacion.html#aplicaciones-prácticas",
+    "href": "suavizacion.html#aplicaciones-prácticas",
+    "title": "2  Suavización",
+    "section": "2.3 Aplicaciones Prácticas",
+    "text": "2.3 Aplicaciones Prácticas\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Suavización</span>"
+    ]
+  },
+  {
+    "objectID": "renabap.html",
+    "href": "renabap.html",
+    "title": "3  RENABAP",
+    "section": "",
+    "text": "3.1 Introducción al RENABAP\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>RENABAP</span>"
+    ]
+  },
+  {
+    "objectID": "renabap.html#análisis-de-datos-renabap",
+    "href": "renabap.html#análisis-de-datos-renabap",
+    "title": "3  RENABAP",
+    "section": "3.2 Análisis de Datos RENABAP",
+    "text": "3.2 Análisis de Datos RENABAP\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>RENABAP</span>"
+    ]
+  },
+  {
+    "objectID": "renabap.html#resultados-y-conclusiones",
+    "href": "renabap.html#resultados-y-conclusiones",
+    "title": "3  RENABAP",
+    "section": "3.3 Resultados y Conclusiones",
+    "text": "3.3 Resultados y Conclusiones\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>RENABAP</span>"
     ]
   }
 ]
