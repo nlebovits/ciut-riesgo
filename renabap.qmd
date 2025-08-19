@@ -1,3 +1,7 @@
+---
+lightbox: auto
+---
+
 # RENABAP
 
 ## Objectivos
@@ -23,6 +27,18 @@
 ## Metodología y procesamiento
 
 ```{python}
+
+
+import matplotlib.pyplot as plt
+import contextily as ctx
+
+
+from io import BytesIO, StringIO
+from owslib.wfs import WebFeatureService
+from shapely.geometry import box
+import geopandas as gpd
+import requests
+import pandas as pd
 import pandas as pd
 import geopandas as gpd
 import requests
@@ -33,81 +49,107 @@ import duckdb
 
 
 import matplotlib.pyplot as plt
-import contextily as ctx
 
 import numpy as np
 import s2sphere
 from botocore.config import Config
 from rasterstats import zonal_stats
 
-from io import BytesIO
-from owslib.wfs import WebFeatureService
+
 from shapely.geometry import box
 
 
 USE_CRS = "EPSG:5349"
+
 
 # Generic mapping functions
 def setup_base_map(figsize=(12, 10), bounds=None, padding_x=500, padding_y=500):
     """Create figure and set up basic map boundaries with padding."""
     if bounds is None:
         bounds = renabap_pba_intersect.total_bounds
-    
+
+    # Convert bounds to Web Mercator for basemap compatibility
+    if bounds is not None:
+        # Create a temporary GeoDataFrame with the bounds to reproject
+        temp_bounds = gpd.GeoDataFrame(
+            geometry=[box(bounds[0], bounds[1], bounds[2], bounds[3])], crs=USE_CRS
+        )
+        bounds_3857 = temp_bounds.to_crs("EPSG:3857").total_bounds
+    else:
+        bounds_3857 = bounds
+
     fig, ax = plt.subplots(figsize=figsize)
-    ax.set_xlim(bounds[0] - padding_x, bounds[2] + padding_x)
-    ax.set_ylim(bounds[1] - padding_y, bounds[3] + padding_y)
+    ax.set_xlim(bounds_3857[0] - padding_x, bounds_3857[2] + padding_x)
+    ax.set_ylim(bounds_3857[1] - padding_y, bounds_3857[3] + padding_y)
     return fig, ax
+
 
 def add_basemap(ax, zoom=13):
     """Add CartoDB basemap to the axes."""
-    # Convert to Web Mercator for basemap
-    ax_web_mercator = ax.figure.add_axes(ax.get_position(), projection='EPSG:3857')
-    ax_web_mercator.set_xlim(ax.get_xlim())
-    ax_web_mercator.set_ylim(ax.get_ylim())
-    
+    # The axes are already in Web Mercator from setup_base_map
     ctx.add_basemap(
-        ax_web_mercator,
+        ax,
         source=ctx.providers.CartoDB.PositronNoLabels,
         zorder=0,
         zoom=zoom,
     )
-    
-    # Copy basemap to original axes
-    ax.imshow(ax_web_mercator.get_images()[0], extent=ax.get_xlim() + ax.get_ylim(), zorder=0)
-    ax.figure.delaxes(ax_web_mercator)
-    
+
     return ax
 
-def add_north_arrow(ax, x=0.95, y=0.95, width=0.05, height=0.05):
+
+def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
     """Add a north arrow to the map."""
-    # Convert to axes coordinates
-    trans = ax.transAxes
-    
-    # North arrow
-    arrow_x = [x, x, x + width/2, x, x - width/2]
-    arrow_y = [y - height, y, y + height, y, y + height]
-    
-    ax.fill(arrow_x, arrow_y, transform=trans, color='black', zorder=1000)
-    ax.text(x, y + height + 0.02, 'N', transform=trans, 
-            ha='center', va='bottom', fontweight='bold', fontsize=12, zorder=1000)
+    # Add north arrow, https://stackoverflow.com/a/58110049/604456
+    ax.annotate('N', xy=(x, y), xytext=(x, y-arrow_length),
+                arrowprops=dict(facecolor='black', width=3, headwidth=10),
+                ha='center', va='center', fontsize=14,
+                xycoords=ax.transAxes)
+
 
 def create_consistent_map(title, bounds=None):
     """Create a map with consistent styling and basemap."""
     fig, ax = setup_base_map(bounds=bounds)
-    
+
     # Add basemap
     add_basemap(ax)
-    
+
     # Add north arrow
     add_north_arrow(ax)
-    
+
     # Set title
-    ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
-    
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
     # Remove axes
     ax.set_axis_off()
-    
+
     return fig, ax
+
+
+
+def wfs_to_gdf(
+    wfs_url: str, layer_name: str, srs: str = "EPSG:4326"
+) -> gpd.GeoDataFrame:
+    """
+    Descarga una capa WFS y la devuelve como GeoDataFrame.
+
+    Args:
+        wfs_url (str): URL del servicio WFS.
+        layer_name (str): Nombre de la capa (typename).
+        srs (str): Código EPSG del sistema de referencia de coordenadas.
+
+    Returns:
+        gpd.GeoDataFrame: Capa descargada como GeoDataFrame.
+    """
+    wfs = WebFeatureService(url=wfs_url, version="2.0.0")
+    response = wfs.getfeature(typename=layer_name, srsname=srs)
+    gdf = gpd.read_file(BytesIO(response.read()))
+    return gdf
+
+
+
+```
+
+```{python}
 
 ### import data
 
@@ -129,43 +171,37 @@ renabap_pba_intersect = renabap_pba[
     renabap_pba.geometry.intersects(peligro_bbox)
 ].copy()
 
-
-
-def wfs_to_gdf(wfs_url: str, layer_name: str, srs: str = "EPSG:4326") -> gpd.GeoDataFrame:
-    """
-    Descarga una capa WFS y la devuelve como GeoDataFrame.
-    
-    Args:
-        wfs_url (str): URL del servicio WFS.
-        layer_name (str): Nombre de la capa (typename).
-        srs (str): Código EPSG del sistema de referencia de coordenadas.
-    
-    Returns:
-        gpd.GeoDataFrame: Capa descargada como GeoDataFrame.
-    """
-    wfs = WebFeatureService(url=wfs_url, version="2.0.0")
-    response = wfs.getfeature(typename=layer_name, srsname=srs)
-    gdf = gpd.read_file(BytesIO(response.read()))
-    return gdf
-
 partidos = wfs_to_gdf(
-     wfs_url="https://geo.arba.gov.ar/geoserver/idera/wfs",
-     layer_name="idera:Departamento",
-     srs="EPSG:5347"
+    wfs_url="https://geo.arba.gov.ar/geoserver/idera/wfs",
+    layer_name="idera:Departamento",
+    srs="EPSG:5347",
 )
 
 partidos = partidos.to_crs(USE_CRS)
 
-la_plata = partidos[partidos['fna'] == 'Partido de La Plata']
+la_plata = partidos[partidos["fna"] == "Partido de La Plata"]
 
 # Get common bounds for all maps
 common_bounds = renabap_pba_intersect.total_bounds
-
-### Mapa 1: Asentamientos RENABAP en La Plata
+```
 
 ```{python}
 # Map 1: RENABAP settlements overlaid on La Plata partido
 fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
+
+# Add RENABAP settlements as black outline with no fill
+# Reproject to Web Mercator to match the map's coordinate system
+renabap_pba_intersect_3857 = renabap_pba_intersect.to_crs("EPSG:3857")
+
+renabap_pba_intersect_3857.plot(
+    ax=ax1,
+    facecolor='none',
+    edgecolor='black',
+    linewidth=0.5,
+    legend=False,
+    zorder=10
+)
+
 plt.tight_layout()
 plt.show()
 ```
@@ -173,78 +209,84 @@ plt.show()
 ### Mapa 2: Datos de población GHSL
 
 ```{python}
+
+import rioxarray
+from shapely.geometry import box
+
+# Load GHSL data with dask chunking for memory efficiency
+ghsl = rioxarray.open_rasterio(
+    "/home/nissim/Downloads/spatial/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13.tif",
+    chunks={"x": 1024, "y": 1024},  # Adjust chunk size based on your memory constraints
+)
+
+# Reproject to your target CRS with streaming
+ghsl = ghsl.rio.reproject(dst_crs=USE_CRS)
+
+# Clip GHSL data to ONLY the Partido de La Plata boundaries
+# This will remove any GHSL data outside the partido
+ghsl_clipped = ghsl.rio.clip(
+    [la_plata.geometry.iloc[0]],  # Use the actual La Plata partido geometry
+    from_disk=True,  # Process from disk to avoid loading entire dataset into memory
+)
+
+```
+
+```{python}
+# Import config for color palette
+from config import PINK_PALETTE
+from jenkspy import jenks_breaks
+
 # Map 2: GHSL population data
 fig2, ax2 = create_consistent_map("Datos de población GHSL", common_bounds)
+
+# Create masked array to hide zero values (do this before jenks classification)
+import numpy.ma as ma
+ghsl_masked = ma.masked_where(ghsl_clipped.values[0] == 0, ghsl_clipped.values[0])
+
+# Calculate jenks breaks for GHSL data (excluding nodata values and zeros)
+ghsl_valid = (ghsl_clipped.values[0] != -200) & (ghsl_clipped.values[0] != 0)
+ghsl_valid_data = ghsl_clipped.values[0][ghsl_valid]
+jenks_breaks = jenks_breaks(ghsl_valid_data, n_classes=10)
+
+# Use plasma colormap from matplotlib
+import matplotlib.pyplot as plt
+plasma_cmap = plt.cm.plasma
+
+# Reproject GHSL data to Web Mercator to match the map's coordinate system
+ghsl_clipped_3857 = ghsl_clipped.rio.reproject("EPSG:3857")
+
+# Ensure the reprojected data covers the entire map area
+# Instead of clipping, let's make sure the data extends beyond the map bounds
+# This will prevent the "box-ish" appearance at the edges
+
+# Create masked array for the reprojected and clipped data
+# Mask out both zeros AND nodata values to make areas outside the clipped zone transparent
+ghsl_masked_3857 = ma.masked_where(
+    (ghsl_clipped_3857.values[0] == 0) | (ghsl_clipped_3857.values[0] == -200),
+    ghsl_clipped_3857.values[0]
+)
+
+# Plot GHSL raster with jenks classification and zero masking
+im = ax2.imshow(
+    ghsl_masked_3857,
+    extent=[ghsl_clipped_3857.x.min(), ghsl_clipped_3857.x.max(), 
+            ghsl_clipped_3857.y.min(), ghsl_clipped_3857.y.max()],
+    cmap=plasma_cmap,
+    alpha=0.75,
+    vmin=jenks_breaks[0],
+    vmax=jenks_breaks[-1]
+)
+
+# Add colorbar legend at the bottom with better positioning
+cbar = plt.colorbar(im, ax=ax2, orientation='horizontal', 
+                    location='bottom', shrink=0.6, aspect=40, pad=0.15)
+cbar.set_label('Población GHSL', fontsize=10)
+
 plt.tight_layout()
 plt.show()
 ```
 
-### Interpolación por area
-
-```{python}
-# Ensure both GeoDataFrames have the same CRS
-if renabap_pba_intersect.crs != peligro.crs:
-    peligro = peligro.to_crs(renabap_pba_intersect.crs)
-
-# Get unique hazard levels
-hazard_levels = peligro["PELIGROSID"].unique()
-
-# Initialize result columns
-renabap_with_porciones = renabap_pba_intersect.copy()
-for level in hazard_levels:
-    renabap_with_porciones[f"porcion_{level}"] = 0.0
-
-# Calculate total area of each barrio
-renabap_with_porciones['total_area'] = renabap_with_porciones.geometry.area
-
-# For each barrio, calculate intersection with each hazard level
-for idx, barrio in renabap_with_porciones.iterrows():
-    barrio_geom = barrio.geometry
-    barrio_total_area = barrio_geom.area
-    
-    if barrio_total_area == 0:
-        continue
-        
-    for level in hazard_levels:
-        hazard_subset = peligro[peligro["PELIGROSID"] == level]
-        
-        if hazard_subset.empty:
-            continue
-        
-        # Calculate intersection area
-        intersection_area = 0
-        for _, hazard_row in hazard_subset.iterrows():
-            try:
-                intersection = barrio_geom.intersection(hazard_row.geometry)
-                if not intersection.is_empty:
-                    intersection_area += intersection.area
-            except Exception as e:
-                print(f"Error calculating intersection for {barrio.get('nombre_barrio', idx)}: {e}")
-                continue
-        
-        # Calculate proportion
-        proportion = intersection_area / barrio_total_area if barrio_total_area > 0 else 0
-        renabap_with_porciones.at[idx, f"porcion_{level}"] = proportion
-
-# Create tidy format dataframe
-renabap_tidy = []
-
-for idx, row in renabap_with_porciones.iterrows():
-    for level in hazard_levels:
-        familias_expuestas = row[f"porcion_{level}"] * row["familias_aproximadas"]
-        
-        renabap_tidy.append({
-            "id_renabap": row["id_renabap"],
-            "nombre_barrio": row["nombre_barrio"],
-            "peligrosidad": level,
-            "fam_expuestas_areal": familias_expuestas
-        })
-
-renabap_tidy = pd.DataFrame(renabap_tidy)
-```
-
-
-### Cuenta de edificios
+### Mapa 3: Huellas de edificios
 
 ```{python}
 
@@ -320,34 +362,101 @@ def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
 
 # Usage:
 buildings = fetch_buildings(renabap_pba_intersect)
+
+# Reproject buildings to match the analysis CRS
+buildings_proj = buildings.to_crs(USE_CRS)
 ```
+
+
+```{python}
+# Map 3: Building footprints
+fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
+
+# Add building footprints with grey fill and no outline
+buildings_3857 = buildings_proj.to_crs("EPSG:3857")
+
+buildings_3857.plot(
+    ax=ax3,
+    facecolor='grey',
+    edgecolor='none',
+    alpha=0.7
+)
+
+plt.tight_layout()
+plt.show()
+```
+
+### Interpolación por area
+
+```{python}
+# Ensure both GeoDataFrames have the same CRS
+if renabap_pba_intersect.crs != peligro.crs:
+    peligro = peligro.to_crs(renabap_pba_intersect.crs)
+
+# Get unique hazard levels
+hazard_levels = peligro["PELIGROSID"].unique()
+
+# Initialize result columns
+renabap_with_porciones = renabap_pba_intersect.copy()
+for level in hazard_levels:
+    renabap_with_porciones[f"porcion_{level}"] = 0.0
+
+# Calculate total area of each barrio
+renabap_with_porciones['total_area'] = renabap_with_porciones.geometry.area
+
+# For each barrio, calculate intersection with each hazard level
+for idx, barrio in renabap_with_porciones.iterrows():
+    barrio_geom = barrio.geometry
+    barrio_total_area = barrio_geom.area
+    
+    if barrio_total_area == 0:
+        continue
+        
+    for level in hazard_levels:
+        hazard_subset = peligro[peligro["PELIGROSID"] == level]
+        
+        if hazard_subset.empty:
+            continue
+        
+        # Calculate intersection area
+        intersection_area = 0
+        for _, hazard_row in hazard_subset.iterrows():
+            try:
+                intersection = barrio_geom.intersection(hazard_row.geometry)
+                if not intersection.is_empty:
+                    intersection_area += intersection.area
+            except Exception as e:
+                print(f"Error calculating intersection for {barrio.get('nombre_barrio', idx)}: {e}")
+                continue
+        
+        # Calculate proportion
+        proportion = intersection_area / barrio_total_area if barrio_total_area > 0 else 0
+        renabap_with_porciones.at[idx, f"porcion_{level}"] = proportion
+
+# Create tidy format dataframe
+renabap_tidy = []
+
+for idx, row in renabap_with_porciones.iterrows():
+    for level in hazard_levels:
+        familias_expuestas = row[f"porcion_{level}"] * row["familias_aproximadas"]
+        
+        renabap_tidy.append({
+            "id_renabap": row["id_renabap"],
+            "nombre_barrio": row["nombre_barrio"],
+            "peligrosidad": level,
+            "fam_expuestas_areal": familias_expuestas
+        })
+
+renabap_tidy = pd.DataFrame(renabap_tidy)
+```
+
+
+### Cuenta de edificios
+
 
 ### Mapeo dasymetrico con datos GHSL
 
 ```{python}
-
-import rioxarray
-from shapely.geometry import box
-
-# Load GHSL data with dask chunking for memory efficiency
-ghsl = rioxarray.open_rasterio(
-    "/home/nissim/Downloads/spatial/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13.tif",
-    chunks={"x": 1024, "y": 1024},  # Adjust chunk size based on your memory constraints
-)
-
-# Reproject to your target CRS with streaming
-ghsl = ghsl.rio.reproject(dst_crs=USE_CRS)
-
-# Clip to renabap_pba_intersect bounding box using streaming
-bounding_box = box(
-    *renabap_pba_intersect.total_bounds
-)  # Create a box from the bounding box coordinates
-
-ghsl_clipped = ghsl.rio.clip(
-    [bounding_box],  # Use the bounding box as a geometry (wrapped in a list)
-    from_disk=True,  # Process from disk to avoid loading entire dataset into memory
-)
-
 
 import rasterstats
 
@@ -462,24 +571,14 @@ for idx, row in settlement_hazard.iterrows():
     )
 
 ghsl_tidy = pd.DataFrame(ghsl_tidy)
-
-### Mapa 3: Huellas de edificios
-
-```{python}
-# Map 3: Building footprints
-fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
-plt.tight_layout()
-plt.show()
 ```
+
 
 
 
 ### Mapeo dasymetrico con datos de edificios
 
 ```{python}
-# Reproject buildings to match the analysis CRS
-buildings_proj = buildings.to_crs(USE_CRS)
-
 # Step 1: Calculate buildings per settlement-hazard intersection
 buildings_hazard = gpd.overlay(buildings_proj, settlement_hazard, how="intersection")
 
@@ -556,155 +655,6 @@ buildings_tidy = buildings_tidy.rename(
 
 # Filter out the 'total' rows since we only want hazard-specific data
 buildings_tidy = buildings_tidy[buildings_tidy["peligrosidad"] != "total"].copy()
-
-### Mapa 3: Huellas de edificios
-
-```{python}
-# Map 3: Building footprints
-fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
-
-# Plot building footprints
-buildings_proj.plot(ax=ax3, color='darkgreen', alpha=0.6, markersize=1, zorder=5)
-
-plt.tight_layout()
-plt.show()
-```
-
-```{python}
-
-def setup_base_map(figsize=(12, 10), bounds=None, padding_x=500, padding_y=500):
-    """Create figure and set up basic map boundaries with padding."""
-    if bounds is None:
-        bounds = renabap_pba_intersect.total_bounds
-    
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.set_xlim(bounds[0] - padding_x, bounds[2] + padding_x)
-    ax.set_ylim(bounds[1] - padding_y, bounds[3] + padding_y)
-    return fig, ax
-
-def add_basemap(ax, zoom=13):
-    """Add CartoDB basemap to the axes."""
-    # Convert to Web Mercator for basemap
-    ax_web_mercator = ax.figure.add_axes(ax.get_position(), projection='EPSG:3857')
-    ax_web_mercator.set_xlim(ax.get_xlim())
-    ax_web_mercator.set_ylim(ax.get_ylim())
-    
-    ctx.add_basemap(
-        ax_web_mercator,
-        source=ctx.providers.CartoDB.PositronNoLabels,
-        zorder=0,
-        zoom=zoom,
-    )
-    
-    # Copy basemap to original axes
-    ax.imshow(ax_web_mercator.get_images()[0], extent=ax.get_xlim() + ax.get_ylim(), zorder=0)
-    ax.figure.delaxes(ax_web_mercator)
-    
-    return ax
-
-def add_north_arrow(ax, x=0.95, y=0.95, width=0.05, height=0.05):
-    """Add a north arrow to the map."""
-    # Convert to axes coordinates
-    trans = ax.transAxes
-    
-    # North arrow
-    arrow_x = [x, x, x + width/2, x, x - width/2]
-    arrow_y = [y - height, y, y + height, y, y + height]
-    
-    ax.fill(arrow_x, arrow_y, transform=trans, color='black', zorder=1000)
-    ax.text(x, y + height + 0.02, 'N', transform=trans, 
-            ha='center', va='bottom', fontweight='bold', fontsize=12, zorder=1000)
-
-def create_consistent_map(title, bounds=None):
-    """Create a map with consistent styling and basemap."""
-    fig, ax = setup_base_map(bounds=bounds)
-    
-    # Add basemap
-    add_basemap(ax)
-    
-    # Add north arrow
-    add_north_arrow(ax)
-    
-    # Set title
-    ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
-    
-    # Remove axes
-    ax.set_axis_off()
-    
-    return fig, ax
-
-# Get common bounds for all maps
-common_bounds = renabap_pba_intersect.total_bounds
-
-# Map 1: RENABAP settlements overlaid on La Plata partido
-fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
-
-# Add La Plata partido boundary
-la_plata.boundary.plot(ax=ax1, color='darkblue', linewidth=2, zorder=5, label='Partido de La Plata')
-
-# Add RENABAP settlements as outlines
-renabap_pba_intersect.boundary.plot(ax=ax1, color='red', linewidth=1, zorder=6, label='Asentamientos RENABAP')
-
-ax1.legend(loc='upper right')
-plt.tight_layout()
-plt.show()
-
-# Map 2: GHSL population data
-fig2, ax2 = create_consistent_map("Datos de población GHSL", common_bounds)
-
-# Plot GHSL data as raster
-ghsl_clipped.plot.imshow(ax=ax2, cmap='YlOrRd', zorder=5, add_colorbar=True, 
-                         cbar_kwargs={'label': 'Población estimada'})
-
-plt.tight_layout()
-plt.show()
-
-# Map 3: Building footprints
-fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
-
-# Plot building footprints
-buildings_proj.plot(ax=ax3, color='darkgreen', alpha=0.6, markersize=1, zorder=5)
-
-plt.tight_layout()
-plt.show()
-
-# Map 4: Barrios por población expuesta estimada
-fig4, ax4 = create_consistent_map("Barrios por población expuesta estimada", common_bounds)
-
-# Calculate total exposure per barrio (using area method as example)
-barrio_exposure = (
-    final_tidy[final_tidy["metodo"] == "area"]
-    .groupby("id_renabap")["fam_expuestas"]
-    .sum()
-    .reset_index()
-)
-
-# Merge with geometry
-barrio_exposure_map = renabap_pba_intersect.merge(
-    barrio_exposure, on="id_renabap", how="left"
-)
-
-# Plot choropleth
-barrio_exposure_map.plot(
-    column="fam_expuestas", 
-    ax=ax4, 
-    legend=True, 
-    legend_kwds={'label': 'Familias expuestas'},
-    cmap='Reds',
-    zorder=5
-)
-
-plt.tight_layout()
-plt.show()
-```
-
-### Mapa 4: Barrios por población expuesta estimada
-
-```{python}
-# Map 4: Barrios por población expuesta estimada
-fig4, ax4 = create_consistent_map("Barrios por población expuesta estimada", common_bounds)
-plt.tight_layout()
-plt.show()
 ```
 
 ## Resultados y conclusiones
@@ -722,47 +672,65 @@ final_df = final_df.merge(
 fam_expuestas_columns = [col for col in final_df.columns if 'fam_expuestas' in col]
 final_df[fam_expuestas_columns] = final_df[fam_expuestas_columns].fillna(0)
 
+# Get the geometry and nombre_barrio information from renabap_pba_intersect
+# We only need one row per id_renabap since these are constant
+renabap_info = renabap_pba_intersect[['id_renabap', 'nombre_barrio', 'geometry']].drop_duplicates(subset=['id_renabap'])
+
 # Create long format dataframe with aggregation
 final_tidy = []
 
 # Add renabap data
 for _, row in renabap_tidy.iterrows():
-    final_tidy.append(
-        {
-            "id_renabap": row["id_renabap"],
-            "peligrosidad": row["peligrosidad"],
-            "metodo": "area",
-            "fam_expuestas": row["fam_expuestas_areal"],
-        }
-    )
+    # Get the corresponding barrio info
+    barrio_info = renabap_info[renabap_info['id_renabap'] == row["id_renabap"]]
+    if len(barrio_info) > 0:
+        final_tidy.append(
+            {
+                "id_renabap": row["id_renabap"],
+                "nombre_barrio": barrio_info.iloc[0]["nombre_barrio"],
+                "geometry": barrio_info.iloc[0]["geometry"],
+                "peligrosidad": row["peligrosidad"],
+                "metodo": "area",
+                "fam_expuestas": row["fam_expuestas_areal"],
+            }
+        )
 
 # Add ghsl data
 for _, row in ghsl_tidy.iterrows():
-    final_tidy.append(
-        {
-            "id_renabap": row["id_renabap"],
-            "peligrosidad": row["peligrosidad"],
-            "metodo": "ghsl",
-            "fam_expuestas": row["fam_expuestas_ghsl"],
-        }
-    )
+    barrio_info = renabap_info[renabap_info['id_renabap'] == row["id_renabap"]]
+    if len(barrio_info) > 0:
+        final_tidy.append(
+            {
+                "id_renabap": row["id_renabap"],
+                "nombre_barrio": barrio_info.iloc[0]["nombre_barrio"],
+                "geometry": barrio_info.iloc[0]["geometry"],
+                "peligrosidad": row["peligrosidad"],
+                "metodo": "ghsl",
+                "fam_expuestas": row["fam_expuestas_ghsl"],
+            }
+        )
 
 # Add buildings data
 for _, row in buildings_tidy.iterrows():
-    final_tidy.append(
-        {
-            "id_renabap": row["id_renabap"],
-            "peligrosidad": row["peligrosidad"],
-            "metodo": "edificios",
-            "fam_expuestas": row["fam_expuestas_edificios"],
-        }
-    )
+    barrio_info = renabap_info[renabap_info['id_renabap'] == row["id_renabap"]]
+    if len(barrio_info) > 0:
+        final_tidy.append(
+            {
+                "id_renabap": row["id_renabap"],
+                "nombre_barrio": barrio_info.iloc[0]["nombre_barrio"],
+                "geometry": barrio_info.iloc[0]["geometry"],
+                "peligrosidad": row["peligrosidad"],
+                "metodo": "edificios",
+                "fam_expuestas": row["fam_expuestas_edificios"],
+            }
+        )
 
 final_tidy = pd.DataFrame(final_tidy)
 
 # Aggregate to get one observation per barrio per hazard level per method
+# Exclude geometry from groupby since it can't be sorted
 final_tidy = (
-    final_tidy.groupby(["id_renabap", "peligrosidad", "metodo"])["fam_expuestas"]
+    final_tidy.groupby(["id_renabap", "nombre_barrio", "peligrosidad", "metodo"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
@@ -772,18 +740,34 @@ all_barrios = final_tidy["id_renabap"].unique()
 all_hazard_levels = ["alta", "baja", "media"]
 all_methods = ["area", "ghsl", "edificios"]
 
-complete_combinations = pd.DataFrame([
-    {"id_renabap": barrio, "peligrosidad": hazard, "metodo": method}
-    for barrio in all_barrios
-    for hazard in all_hazard_levels
-    for method in all_methods
-])
+# Get the barrio info for complete combinations
+complete_combinations = []
+for barrio in all_barrios:
+    barrio_info = renabap_info[renabap_info['id_renabap'] == barrio]
+    if len(barrio_info) > 0:
+        for hazard in all_hazard_levels:
+            for method in all_methods:
+                complete_combinations.append({
+                    "id_renabap": barrio,
+                    "nombre_barrio": barrio_info.iloc[0]["nombre_barrio"],
+                    "peligrosidad": hazard,
+                    "metodo": method
+                })
+
+complete_combinations = pd.DataFrame(complete_combinations)
 
 # Merge with actual data and fill missing values with 0
 final_tidy = complete_combinations.merge(
-    final_tidy, on=["id_renabap", "peligrosidad", "metodo"], how="left"
+    final_tidy, on=["id_renabap", "nombre_barrio", "peligrosidad", "metodo"], how="left"
 )
 final_tidy["fam_expuestas"] = final_tidy["fam_expuestas"].fillna(0)
+
+# Add geometry back to complete combinations - only once!
+final_tidy = final_tidy.merge(
+    renabap_info[['id_renabap', 'geometry']], 
+    on='id_renabap', 
+    how='left'
+)
 
 # Calculate total exposure per hazard level per method
 summary = (
@@ -792,34 +776,51 @@ summary = (
     .reset_index()
     .pivot(index="peligrosidad", columns="metodo", values="fam_expuestas")
 )
+```
 
+```{python}
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Filter for high exposure (alta peligrosidad)
+# Import categorical colors from config
+from config import CATEGORICAL_COLORS
+
+# Filter for high exposure (alta peligrosidad) using the joined dataframe
 alta_data = final_tidy[final_tidy["peligrosidad"] == "alta"].copy()
+
+# Aggregate by nombre_barrio and sum fam_expuestas for each method
+# This handles cases where there are multiple geometries with the same barrio name
+alta_aggregated = (
+    alta_data.groupby(["nombre_barrio", "metodo"])["fam_expuestas"]
+    .sum()
+    .reset_index()
+)
 
 # Calculate total exposure per barrio across all methods
 total_exposure = (
-    alta_data.groupby("id_renabap")["fam_expuestas"]
+    alta_aggregated.groupby("nombre_barrio")["fam_expuestas"]
     .sum()
     .sort_values(ascending=False)
 )
-top_25_barrios = total_exposure.head(25).index
+top_10_barrios = total_exposure.head(10).index
 
-# Filter data for top 25 barrios
-top_25_data = alta_data[
-    alta_data["id_renabap"].isin(top_25_barrios)
+# Filter aggregated data for top 10 barrios
+top_10_data = alta_aggregated[
+    alta_aggregated["nombre_barrio"].isin(top_10_barrios)
 ].copy()
 
 # Create range plot showing min, max, and individual points
-plt.figure(figsize=(15, 10))
+plt.figure(figsize=(14, 10))  # Increased height to accommodate longer barrio names
 
-# Define colors for methods
-method_colors = {"area": "blue", "ghsl": "red", "edificios": "green"}
+# Define colors for methods using categorical color scheme
+method_colors = {
+    "area": CATEGORICAL_COLORS[0],      # Blue alta
+    "ghsl": CATEGORICAL_COLORS[1],      # Pink alta  
+    "edificios": CATEGORICAL_COLORS[2]  # Teal
+}
 
-for i, barrio in enumerate(top_25_barrios):
-    barrio_data = top_25_data[top_25_data["id_renabap"] == barrio]
+for i, barrio in enumerate(top_10_barrios):
+    barrio_data = top_10_data[top_10_data["nombre_barrio"] == barrio]
     if len(barrio_data) > 0:
         values = barrio_data["fam_expuestas"].values
         min_val = values.min()
@@ -833,10 +834,10 @@ for i, barrio in enumerate(top_25_barrios):
             color = method_colors[row["metodo"]]
             plt.plot(row["fam_expuestas"], i, "o", color=color, markersize=6, alpha=0.8)
 
-plt.yticks(range(len(top_25_barrios)), top_25_barrios)
+plt.yticks(range(len(top_10_barrios)), top_10_barrios)
 plt.xlabel("Familias Expuestas")
-plt.ylabel("Barrio ID")
-plt.title("Range of High Exposure Estimates for Top 25 Barrios", fontsize=14)
+plt.ylabel("Barrio")
+plt.title("Range of High Exposure Estimates for Top 10 Barrios", fontsize=14)
 plt.grid(True, alpha=0.3)
 
 # Add legend
@@ -858,11 +859,79 @@ plt.tight_layout()
 plt.show()
 ```
 
+
 ### Mapa 4: Barrios por población expuesta estimada
 
 ```{python}
 # Map 4: Barrios por población expuesta estimada
 fig4, ax4 = create_consistent_map("Barrios por población expuesta estimada", common_bounds)
+
+# Get edificios method data from final_tidy, filtering out low risk
+edificios_data = final_tidy[
+    (final_tidy["metodo"] == "edificios") & 
+    (final_tidy["peligrosidad"].isin(["alta", "media"]))
+].copy()
+
+# Convert to GeoDataFrame and reproject geometries to EPSG:3857 for proper plotting
+edificios_gdf = gpd.GeoDataFrame(edificios_data, geometry='geometry', crs='EPSG:5349')
+edificios_gdf_3857 = edificios_gdf.to_crs('EPSG:3857')
+
+# Import matplotlib colormap using the correct syntax
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
+# Get RdPu colormap using the correct syntax
+rdpu_cmap = cm.RdPu
+
+# Define colors for peligrosidad levels using RdPu colormap
+peligrosidad_colors = {
+    "alta": rdpu_cmap(0.8),    # Darker red-purple for high risk
+    "media": rdpu_cmap(0.4)    # Lighter red-purple for medium risk
+}
+
+# Define plotting order - medium risk first (underneath), high risk last (on top)
+plotting_order = ["media", "alta"]
+
+# Plot centroids for each barrio with jittering, in controlled order
+np.random.seed(42)  # For reproducible results
+
+for peligrosidad in plotting_order:
+    # Get data for this peligrosidad level
+    level_data = edificios_gdf_3857[edificios_gdf_3857["peligrosidad"] == peligrosidad]
+    
+    for _, row in level_data.iterrows():
+        # Calculate centroid from the reprojected geometry
+        centroid = row["geometry"].centroid
+        
+        # Add jitter
+        jitter_x = np.random.uniform(-200, 200)
+        jitter_y = np.random.uniform(-200, 200)
+        
+        x_pos = centroid.x + jitter_x
+        y_pos = centroid.y + jitter_y
+        
+        # Get color based on peligrosidad
+        color = peligrosidad_colors[row["peligrosidad"]]
+        
+        # Size based on number of families exposed
+        size = max(10, row["fam_expuestas"] * 2 + 10)
+        
+        # Plot the centroid as a circle with jitter - use color keyword instead of c
+        ax4.scatter(
+            x_pos, y_pos, 
+            s=size, color=color,  # Changed from c=color to color=color
+            alpha=0.9,
+            edgecolors='white',
+            linewidth=1.0
+        )
+
+# Add legend for peligrosidad levels
+legend_elements = [
+    plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=8, label=level.capitalize())
+    for level, color in peligrosidad_colors.items()
+]
+ax4.legend(handles=legend_elements, title="Nivel de Peligrosidad", loc='upper right')
+
 plt.tight_layout()
 plt.show()
 ```

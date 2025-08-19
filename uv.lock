@@ -312,6 +312,7 @@ dependencies = [
     { name = "google-cloud-filestore" },
     { name = "google-cloud-storage" },
     { name = "ipykernel" },
+    { name = "jenkspy" },
     { name = "jupyter" },
     { name = "matplotlib" },
     { name = "owslib" },
@@ -341,6 +342,7 @@ requires-dist = [
     { name = "google-cloud-filestore", specifier = ">=1.13.1" },
     { name = "google-cloud-storage", specifier = ">=3.1.0" },
     { name = "ipykernel", specifier = ">=6.29.5" },
+    { name = "jenkspy", specifier = ">=0.4.1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "owslib", specifier = ">=0.34.1" },
@@ -1076,6 +1078,25 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/72/3a/79a912fbd4d8dd6fbb02bf69afd3bb72cf0c729bb3063c6f4498603db17a/jedi-0.19.2.tar.gz", hash = "sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0", size = 1231287 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c0/5a/9cac0c82afec3d09ccd97c8b6502d48f165f9124db81b4bcb90b4af974ee/jedi-0.19.2-py2.py3-none-any.whl", hash = "sha256:a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9", size = 1572278 },
+]
+
+[[package]]
+name = "jenkspy"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/95/a1aef86df7bb9af295cdda03d218556e2f4524e4d30168b8ee6af88bfa40/jenkspy-0.4.1.tar.gz", hash = "sha256:e61e2103bed031cdfac9996604308298bc0a29f8051f09c343d9ce35af32a1f3", size = 191568 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a1/ee/c4a8af2dd0e63b60d3141683887c0ae79b84cc8bee53832a334744f94d36/jenkspy-0.4.1-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:6c49cd705c38acd7e8fb6afd3a998bc0ba754685d9110c239233b30e6da6a769", size = 234245 },
+    { url = "https://files.pythonhosted.org/packages/ef/cb/74466013039bbce311d16e91764bdcccbbdef1ac4c5794952c16772f3978/jenkspy-0.4.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:988f7261e82fe88770f95d5712bf2663ee73e1630e873ad016588cb1e5234d69", size = 227886 },
+    { url = "https://files.pythonhosted.org/packages/2a/da/76455dca608c4a286e9b0253e8f2de9f90951cc52f71098827465c05ab16/jenkspy-0.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:277ce49e82cec01a809e5c9e1c63efac2baca1949d07ece53324bb7451a26cac", size = 642021 },
+    { url = "https://files.pythonhosted.org/packages/b1/8f/90491811e4000bb751b3f9f10bef30ea35969381abfedf1e60d64554ba4e/jenkspy-0.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:eb12ceb98a124d8f1bee6ed438e0e3d63e126459865834af6dac5aaf9bdcc60c", size = 224578 },
+    { url = "https://files.pythonhosted.org/packages/f6/cb/27a22b46f433c008bd3e6f5799e262880a0dd707bd2967eda161d926525c/jenkspy-0.4.1-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:c34f6cf45e75f562da254641ea06996b5b1b0ff72915f118fe954d38e365730b", size = 233032 },
+    { url = "https://files.pythonhosted.org/packages/b5/71/f55389c2fb62d12c2bfcff5531b1ba6b4d4e124373d55fd7b62907a3d895/jenkspy-0.4.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:8fdd9d691754c0a05861c8f9c98ab95cbe9f4bd9fc6a699169ea724b7a9a35fa", size = 226856 },
+    { url = "https://files.pythonhosted.org/packages/e1/7d/36772e3ed1f727315f9f839efbd371615607c427a0b419bfa0bcc57da7fa/jenkspy-0.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d17239c6166d7202140158f49d2f2a2fb33c6b46021c5efa4ecda348c07aa54a", size = 638126 },
+    { url = "https://files.pythonhosted.org/packages/cd/d9/425a5ead8bacf10bdee19618619460ab6156e3b960d7ecf1179eb3c23f65/jenkspy-0.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:d6ba6527ec791419bee9fba76328b13cdf92735df5d1caa74f0475a18c6f01f5", size = 224501 },
 ]
 
 [[package]]
