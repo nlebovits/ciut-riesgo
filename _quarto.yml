@@ -4,8 +4,10 @@ project:
 
 book:
   title: "CIUT Riesgo"
+  subtitle: "Leveraging Permitting and Zoning Data to Predict Upzoning Pressure in Philadelphia"
   author: "Nissim Lebovits"
   date: today
+
   chapters:
     - index.qmd
     - exposicion.qmd
@@ -17,7 +19,14 @@ bibliography: references.bib
 
 format:
   html:
+    toc: true
+    toc_float: true
     theme: cosmo
+    code-fold: true
+    code-summary: "Mostrar código"
+    number-sections: true
+    fontsize: "11"
+    lightbox: true
 
 
 
