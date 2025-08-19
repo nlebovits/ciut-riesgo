@@ -1,3 +1,5 @@
+/_*.local
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -177,6 +179,24 @@ cython_debug/
 credentials/*
 !credentials/.gitkeep
 
+# Environment files
+.env.local
+.env.*.local
+
+# Geospatial data files
+*.parquet
+*.geojson
+*.tif
+*.tiff
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.gpkg
+*.kml
+*.kmz
+
 # Python
 __pycache__/
 *.py[cod]
@@ -211,3 +231,5 @@ ENV/
 .vscode/
 *.swp
 *.swo
+
+/.quarto/

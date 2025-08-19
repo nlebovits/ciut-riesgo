@@ -1,0 +1,24 @@
+project:
+  type: book
+  output-dir: rendered
+
+book:
+  title: "CIUT Riesgo"
+  author: "Nissim Lebovits"
+  date: today
+  chapters:
+    - index.qmd
+    - intro.qmd
+    - summary.qmd
+    - references.qmd
+
+bibliography: references.bib
+
+format:
+  html:
+    theme: cosmo
+  pdf:
+    documentclass: scrreprt
+
+
+
