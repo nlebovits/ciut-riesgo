@@ -2,8 +2,8 @@
 
 Un código base para analizar el riesgo de inundación en el Partido de La Plata.
 
-Instrucciones de instalación están disponibles en [SETUP.md](/docs/SETUP.md).
-El plan de trabajo está disponiblen en [ROADMAP.md](/docs/ROADMAP.md).
+Instrucciones de instalación están disponibles en [SETUP.md](/project-docs/SETUP.md).
+El plan de trabajo está disponiblen en [ROADMAP.md](/project-docs/ROADMAP.md).
 
 ## Recursos para Aprender GIS en Python
 

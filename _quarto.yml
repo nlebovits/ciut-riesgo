@@ -1,6 +1,6 @@
 project:
   type: book
-  output-dir: rendered
+  output-dir: docs
 
 book:
   title: "CIUT Riesgo"
