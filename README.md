@@ -5,6 +5,17 @@ Un código base para analizar el riesgo de inundación en el Partido de La Plata
 Instrucciones de instalación están disponibles en [SETUP.md](/project-docs/SETUP.md).
 El plan de trabajo está disponiblen en [ROADMAP.md](/project-docs/ROADMAP.md).
 
+## Estructura del Proyecto
+
+### Archivos Raíz
+El directorio raíz contiene archivos Quarto sin procesar (`.qmd`) que se renderizan para generar el sitio web en Markdown desplegado en GitHub Pages.
+
+### Notebooks de Análisis
+Los archivos `.qmd` se basan en análisis realizados en el subdirectorio `notebooks/`, que contiene notebooks de Jupyter. Estos notebooks se limpian y procesan para crear los archivos `.qmd` finales.
+
+### Documentación del Proyecto
+La documentación técnica, incluyendo configuración y planificación, se encuentra en el directorio `project-docs/`.
+
 ## Recursos para Aprender GIS en Python
 
 Para aprender más sobre el análisis geoespacial en Python, te recomendamos los siguientes recursos (en orden de complejidad):
