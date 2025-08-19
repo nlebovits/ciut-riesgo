@@ -6,6 +6,7 @@ Instala el software en el siguiente orden:
 2. [Python](https://www.python.org/downloads/) - Necesario para las herramientas de Python
 3. [`uv`](https://docs.astral.sh/uv/) y [`ruff`](https://docs.astral.sh/ruff/) - Herramientas de Python
 4. [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) - Para operaciones en la nube
+5. [Quarto](https://quarto.org/docs/get-started/) - Para renderizar la documentación
 
 La instalación de todo el software debería tomar no más de 15-20 minutos, asumiendo que no tienes ninguno instalado. (Python y Git ya vienen incluidos en sistemas macOS o Linux.)
 
@@ -58,8 +59,36 @@ Coloca tu clave de servicio de Google Cloud Storage en el directorio `credential
 
 4. Configura las variables de entorno:
 
+Crea dos archivos de configuración de entorno:
+
+**Para Python (.env.local):**
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-Edita el archivo `.env` con tus credenciales. Consulta `.env.example` para ver la estructura requerida.
+**Para Quarto (_environment.local):**
+```bash
+cp .env.example _environment.local
+```
+
+Edita ambos archivos con tus credenciales según la estructura del archivo `.env.example`.
+
+## Documentación
+
+### Renderizar la documentación
+
+Para generar la documentación estática:
+
+```bash
+quarto render
+```
+
+### Previsualizar la documentación
+
+Para previsualizar la documentación en tu navegador:
+
+```bash
+quarto preview
+```
+
+Esto iniciará un servidor local que te permitirá ver los cambios en tiempo real mientras editas los archivos `.qmd`.
