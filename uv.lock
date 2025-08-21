@@ -312,6 +312,7 @@ dependencies = [
     { name = "google-cloud-filestore" },
     { name = "google-cloud-storage" },
     { name = "ipykernel" },
+    { name = "itables" },
     { name = "jenkspy" },
     { name = "jupyter" },
     { name = "matplotlib" },
@@ -342,6 +343,7 @@ requires-dist = [
     { name = "google-cloud-filestore", specifier = ">=1.13.1" },
     { name = "google-cloud-storage", specifier = ">=3.1.0" },
     { name = "ipykernel", specifier = ">=6.29.5" },
+    { name = "itables", specifier = ">=2.4.4" },
     { name = "jenkspy", specifier = ">=0.4.1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
@@ -1066,6 +1068,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7c/1a/3c8edc664e06e6bd06cce40c6b22da5f1429aa4224d0c590f3be21c91ead/isoduration-20.11.0.tar.gz", hash = "sha256:ac2f9015137935279eac671f94f89eb00584f940f5dc49462a0c4ee692ba1bd9", size = 11649 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/55/e5326141505c5d5e34c5e0935d2908a74e4561eca44108fbfb9c13d2911a/isoduration-20.11.0-py3-none-any.whl", hash = "sha256:b2904c2a4228c3d44f409c8ae8e2370eb21a26f7ac2ec5446df141dde3452042", size = 11321 },
+]
+
+[[package]]
+name = "itables"
+version = "2.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ipython" },
+    { name = "numpy" },
+    { name = "pandas" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/81/20/ff4b8bc879c4573e91f810ac2c556c565cbedb994237700ae3ffb42e0e9b/itables-2.4.4.tar.gz", hash = "sha256:29e2b771f7fd3ab70b9d2234615b573da325e610832697e986680ccc036aaf5b", size = 2230757 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/cc/a2af9cb19114be0f0afc0242d3e5cb018ac0cbdcf17816c2dd71b68edc79/itables-2.4.4-py3-none-any.whl", hash = "sha256:eb59b24700f6b4ba2a7810a226eeab207a83a2461120f1fd65220f70872eaa45", size = 2261033 },
 ]
 
 [[package]]

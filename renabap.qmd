@@ -1,31 +1,20 @@
 ---
-lightbox: auto
+title: "RENABAP"
+subtitle: "Análisis de la exposición poblacional a peligros de inundación en el Partido de La Plata"
 ---
 
-# RENABAP
+## Objetivos
 
-## Objectivos
+El objetivo principal de este análisis es calcular con mayor precisión la exposición poblacional en la región del Partido de La Plata, comparando el enfoque actual de interpolación por área de datos del RENABAP con enfoques de mapeo dasimétrico de mayor resolución utilizando datos de la Capa Global de Asentamientos Humanos (GHSL) y el conjunto de datos de edificios abiertos de Google-Microsoft OpenStreetMap.
+
+Para lograr este objetivo, necesitamos:
+
+1. **Explicar y comparar metodologías**: Desarrollar una comprensión clara de las diferencias entre interpolación por área y mapeo dasimétrico
+2. **Evaluar fuentes de datos**: Analizar las ventajas y limitaciones de cada conjunto de datos utilizado
+3. **Crear estimaciones robustas**: Generar un rango de posibles exposiciones poblacionales para informar la toma de decisiones
+4. **Priorizar recursos**: Identificar áreas donde se requiera recopilación de datos más precisa
 
 ## Fuentes de datos
-
-### Datos
-
-#### RENABAP
-
-#### Censo Argentino
-
-#### GHSL
-
-#### Google-Microsoft Open Buildings
-
-### Metodología
-
-#### Interpolación por area
-
-#### Mapeo dasymetrico
-
-## Metodología y procesamiento
-
 ```{python}
 
 
@@ -54,8 +43,17 @@ import numpy as np
 import s2sphere
 from botocore.config import Config
 from rasterstats import zonal_stats
+import matplotlib.pyplot as plt
+import rasterstats
+import matplotlib.pyplot as plt
+from scipy import stats
+import seaborn as sns
+from rasterio.features import rasterize
+import numpy as np
 
 
+import rioxarray
+from shapely.geometry import box
 from shapely.geometry import box
 
 
@@ -149,6 +147,11 @@ def wfs_to_gdf(
 
 ```
 
+### RENABAP
+
+El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
+
+
 ```{python}
 
 ### import data
@@ -183,10 +186,12 @@ la_plata = partidos[partidos["fna"] == "Partido de La Plata"]
 
 # Get common bounds for all maps
 common_bounds = renabap_pba_intersect.total_bounds
+
+# Intersect settlements with hazard zones
+settlement_hazard = gpd.overlay(renabap_pba_intersect, peligro, how="intersection")
 ```
 
 ```{python}
-# Map 1: RENABAP settlements overlaid on La Plata partido
 fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
 
 # Add RENABAP settlements as black outline with no fill
@@ -206,7 +211,10 @@ plt.tight_layout()
 plt.show()
 ```
 
-### Mapa 2: Datos de población GHSL
+### GHSL
+
+La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php) [@ghsl_pop2023a] es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación [@tellman2021]. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019].
+
 
 ```{python}
 
@@ -286,11 +294,15 @@ plt.tight_layout()
 plt.show()
 ```
 
-### Mapa 3: Huellas de edificios
+### Google-Microsoft-OSM Open Buildings
+
+Los datos de [Google-Microsoft-OSM Open Buildings - combined by VIDA](https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access) [@google_microsoft_osm_buildings] representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google's V3 Open Buildings, Microsoft's GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido [exitosamente aplicados a evaluaciones de riesgo de inundación por empresas globales de riesgo financiero como ICE](https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities), demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.
+
+
 
 ```{python}
 
-#| cache: true
+#| cache: false
 #| #| output: false
 
 def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
@@ -321,7 +333,7 @@ def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
         obj["Key"].split("/")[-1].replace(".parquet", "")
         for obj in s3.list_objects_v2(
             Bucket="vida",
-            Prefix="google-microsoft-open-buildings/geoparquet/by_country_s2/country_iso=ARG/",
+            Prefix="google-microsoft-osm-open-buildings/geoparquet/by_country_s2/country_iso=ARG/",
         ).get("Contents", [])
     }
 
@@ -347,7 +359,7 @@ def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
 
     # Export and read back
     query = f"""
-    COPY (SELECT * FROM 's3://vida/google-microsoft-open-buildings/geoparquet/by_country_s2/country_iso=ARG/{parent_id}.parquet'
+    COPY (SELECT * FROM 's3://vida/google-microsoft-osm-open-buildings/geoparquet/by_country_s2/country_iso=ARG/{parent_id}.parquet'
           WHERE bbox.xmax >= {bounds[0]} AND bbox.xmin <= {bounds[2]} AND
                 bbox.ymax >= {bounds[1]} AND bbox.ymin <= {bounds[3]}
     ) TO '{temp_file}' (FORMAT PARQUET);
@@ -366,8 +378,6 @@ buildings = fetch_buildings(renabap_pba_intersect)
 # Reproject buildings to match the analysis CRS
 buildings_proj = buildings.to_crs(USE_CRS)
 ```
-
-
 ```{python}
 # Map 3: Building footprints
 fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
@@ -386,8 +396,10 @@ plt.tight_layout()
 plt.show()
 ```
 
-### Interpolación por area
+## Metodología y procesamiento
 
+### Interpolación por area
+La [interpolación areal](https://pysal.org/tobler/notebooks/01_interpolation_methods_overview.html) es un método simple en el que las variables de los datos fuente se ponderan según la superposición entre polígonos fuente y objetivo, luego se reagregan para ajustarse a las geometrías de los polígonos objetivo. En nuestro análisis, esto significa distribuir proporcionalmente la población de cada barrio popular según el área de intersección con diferentes niveles de peligro de inundación. El analasis original de la exposición poblacional a peligros de inundación en la región del Partido de La Plata se realizó utilizando este método.
 ```{python}
 # Ensure both GeoDataFrames have the same CRS
 if renabap_pba_intersect.crs != peligro.crs:
@@ -450,11 +462,94 @@ for idx, row in renabap_with_porciones.iterrows():
 renabap_tidy = pd.DataFrame(renabap_tidy)
 ```
 
-
 ### Cuenta de edificios
 
 
-### Mapeo dasymetrico con datos GHSL
+### Mapeo dasymetrico 
+El [mapeo dasimétrico](https://support.esri.com/en-us/gis-dictionary/dasymetric-mapping) reorganiza datos cartográficos de una unidad de recolección en áreas más precisas, modificando los límites originales usando datos de apoyo relacionados. Por ejemplo, un atributo de población organizado por tracto censal se vuelve más significativo cuando se eliminan áreas donde es razonable inferir que la gente no vive (cuerpos de agua, terrenos vacíos). En nuestro caso, utilizamos datos GHSL y huellas de edificios como información auxiliar para mejorar la precisión de las estimaciones de distribución poblacional.
+
+#### Mapeo dasymetrico con datos de edificios
+
+```{python}
+# Step 1: Calculate buildings per settlement-hazard intersection
+buildings_hazard = gpd.overlay(buildings_proj, settlement_hazard, how="intersection")
+
+# Count buildings per settlement-hazard combination
+buildings_per_hazard = (
+    buildings_hazard.groupby(["id_renabap", "PELIGROSID"])
+    .size()
+    .reset_index(name="buildings_count")
+)
+
+# Step 2: Calculate total buildings per settlement (barrio popular)
+buildings_settlement = gpd.overlay(
+    buildings_proj, renabap_pba_intersect, how="intersection"
+)
+total_buildings_per_settlement = (
+    buildings_settlement.groupby("id_renabap")
+    .size()
+    .reset_index(name="total_buildings")
+)
+
+# Step 3: Merge and calculate ratios
+hazard_ratios = buildings_per_hazard.merge(
+    total_buildings_per_settlement, on="id_renabap", how="left"
+)
+hazard_ratios["building_ratio"] = (
+    hazard_ratios["buildings_count"] / hazard_ratios["total_buildings"]
+)
+
+# Step 4: Get total population per settlement and apply ratios
+settlement_population = renabap_pba_intersect[
+    ["id_renabap", "familias_aproximadas"]
+].copy()
+
+# Merge with ratios and calculate population estimates
+population_estimates = hazard_ratios.merge(
+    settlement_population, on="id_renabap", how="left"
+)
+population_estimates["estimated_population_hazard"] = (
+    population_estimates["building_ratio"]
+    * population_estimates["familias_aproximadas"]
+)
+
+# Step 5: Create final results with totals
+final_results = population_estimates[
+    ["id_renabap", "PELIGROSID", "estimated_population_hazard"]
+].copy()
+
+# Add total population rows (no hazard breakdown)
+total_pop_rows = settlement_population.copy()
+total_pop_rows["PELIGROSID"] = "total"
+total_pop_rows["estimated_population_hazard"] = total_pop_rows["familias_aproximadas"]
+
+# Combine
+final_results = pd.concat(
+    [
+        final_results,
+        total_pop_rows[["id_renabap", "PELIGROSID", "estimated_population_hazard"]],
+    ],
+    ignore_index=True,
+)
+
+# Create buildings tidy dataframe with matching structure
+buildings_tidy = final_results[
+    ["id_renabap", "PELIGROSID", "estimated_population_hazard"]
+].copy()
+
+# Rename columns to match the structure
+buildings_tidy = buildings_tidy.rename(
+    columns={
+        "PELIGROSID": "peligrosidad",
+        "estimated_population_hazard": "fam_expuestas_edificios",
+    }
+)
+
+# Filter out the 'total' rows since we only want hazard-specific data
+buildings_tidy = buildings_tidy[buildings_tidy["peligrosidad"] != "total"].copy()
+```
+
+#### Mapeo dasymetrico con datos GHSL
 
 ```{python}
 
@@ -547,9 +642,6 @@ downscaled_valid = familias_downscaled != -200
 total_original_familias = renabap_pba_intersect["familias_aproximadas"].sum()
 total_downscaled_familias = np.sum(familias_downscaled[downscaled_valid])
 
-# Intersect settlements with hazard zones
-settlement_hazard = gpd.overlay(renabap_pba_intersect, peligro, how="intersection")
-
 # Create GHSL tidy dataframe with matching structure
 ghsl_tidy = []
 
@@ -571,90 +663,6 @@ for idx, row in settlement_hazard.iterrows():
     )
 
 ghsl_tidy = pd.DataFrame(ghsl_tidy)
-```
-
-
-
-
-### Mapeo dasymetrico con datos de edificios
-
-```{python}
-# Step 1: Calculate buildings per settlement-hazard intersection
-buildings_hazard = gpd.overlay(buildings_proj, settlement_hazard, how="intersection")
-
-# Count buildings per settlement-hazard combination
-buildings_per_hazard = (
-    buildings_hazard.groupby(["id_renabap", "PELIGROSID"])
-    .size()
-    .reset_index(name="buildings_count")
-)
-
-# Step 2: Calculate total buildings per settlement (barrio popular)
-buildings_settlement = gpd.overlay(
-    buildings_proj, renabap_pba_intersect, how="intersection"
-)
-total_buildings_per_settlement = (
-    buildings_settlement.groupby("id_renabap")
-    .size()
-    .reset_index(name="total_buildings")
-)
-
-# Step 3: Merge and calculate ratios
-hazard_ratios = buildings_per_hazard.merge(
-    total_buildings_per_settlement, on="id_renabap", how="left"
-)
-hazard_ratios["building_ratio"] = (
-    hazard_ratios["buildings_count"] / hazard_ratios["total_buildings"]
-)
-
-# Step 4: Get total population per settlement and apply ratios
-settlement_population = renabap_pba_intersect[
-    ["id_renabap", "familias_aproximadas"]
-].copy()
-
-# Merge with ratios and calculate population estimates
-population_estimates = hazard_ratios.merge(
-    settlement_population, on="id_renabap", how="left"
-)
-population_estimates["estimated_population_hazard"] = (
-    population_estimates["building_ratio"]
-    * population_estimates["familias_aproximadas"]
-)
-
-# Step 5: Create final results with totals
-final_results = population_estimates[
-    ["id_renabap", "PELIGROSID", "estimated_population_hazard"]
-].copy()
-
-# Add total population rows (no hazard breakdown)
-total_pop_rows = settlement_population.copy()
-total_pop_rows["PELIGROSID"] = "total"
-total_pop_rows["estimated_population_hazard"] = total_pop_rows["familias_aproximadas"]
-
-# Combine
-final_results = pd.concat(
-    [
-        final_results,
-        total_pop_rows[["id_renabap", "PELIGROSID", "estimated_population_hazard"]],
-    ],
-    ignore_index=True,
-)
-
-# Create buildings tidy dataframe with matching structure
-buildings_tidy = final_results[
-    ["id_renabap", "PELIGROSID", "estimated_population_hazard"]
-].copy()
-
-# Rename columns to match the structure
-buildings_tidy = buildings_tidy.rename(
-    columns={
-        "PELIGROSID": "peligrosidad",
-        "estimated_population_hazard": "fam_expuestas_edificios",
-    }
-)
-
-# Filter out the 'total' rows since we only want hazard-specific data
-buildings_tidy = buildings_tidy[buildings_tidy["peligrosidad"] != "total"].copy()
 ```
 
 ## Resultados y conclusiones
@@ -796,6 +804,9 @@ alta_aggregated = (
     .reset_index()
 )
 
+# Remove cases where the barrio name is "Sin Nombre"
+alta_aggregated = alta_aggregated[alta_aggregated["nombre_barrio"] != "Sin Nombre"].copy()
+
 # Calculate total exposure per barrio across all methods
 total_exposure = (
     alta_aggregated.groupby("nombre_barrio")["fam_expuestas"]
@@ -859,8 +870,50 @@ plt.tight_layout()
 plt.show()
 ```
 
+```{python}
+# create a dataframe that has all of the aggregated barrios, with the following columns:
+    # nombre_barrio
+    # peligrosidad
+    # fam expouestas area
+    # fam expouestas ghsl
+    # fam expouestas edificios
 
-### Mapa 4: Barrios por población expuesta estimada
+# output a basic, scrollable table of the dataframe with simple formatting, including row highlighting, scrolling, and pagination, with 20 records per page
+
+# Create aggregated dataframe with all barrios and methods
+# First, create separate dataframes for each method
+area_data = final_tidy[final_tidy["metodo"] == "area"].groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"].sum().reset_index()
+area_data = area_data.rename(columns={"fam_expuestas": "fam_expuestas_area"})
+
+ghsl_data = final_tidy[final_tidy["metodo"] == "ghsl"].groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"].sum().reset_index()
+ghsl_data = ghsl_data.rename(columns={"fam_expuestas": "fam_expuestas_ghsl"})
+
+edificios_data = final_tidy[final_tidy["metodo"] == "edificios"].groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"].sum().reset_index()
+edificios_data = edificios_data.rename(columns={"fam_expuestas": "fam_expuestas_edificios"})
+
+# Merge all methods together
+barrio_summary = area_data.merge(ghsl_data, on=["nombre_barrio", "peligrosidad"], how="outer")
+barrio_summary = barrio_summary.merge(edificios_data, on=["nombre_barrio", "peligrosidad"], how="outer")
+
+# Fill NaN values with 0
+barrio_summary = barrio_summary.fillna(0)
+
+# Columns are already properly named from the aggregation
+
+# Sort by fam_expuestas_edificios in descending order
+barrio_summary = barrio_summary.sort_values("fam_expuestas_edificios", ascending=False)
+
+from itables import show
+
+# Sort by fam_expuestas_edificios in descending order
+barrio_summary = barrio_summary.sort_values("fam_expuestas_edificios", ascending=False)
+
+# Display as interactive table with pagination
+show(barrio_summary)
+```
+
+
+This map is based on the "edificios" method, but could be replicated for the "area" or "GHSL" methods just as easily.
 
 ```{python}
 # Map 4: Barrios por población expuesta estimada
