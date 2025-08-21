@@ -17,9 +17,6 @@ Para lograr este objetivo, necesitamos:
 4. **Priorizar recursos**: Identificar áreas donde se requiera recopilación de datos más precisa
 
 ## Contexto
-
-## Fuentes de datos
-
 ```{python}
 
 
@@ -167,11 +164,6 @@ def wfs_to_gdf(
 
 
 ```
-
-### RENABAP
-
-El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
-
 ```{python}
 
 ### import data
@@ -217,12 +209,29 @@ renabap_pba_intersect = renabap_pba[
 
 
 
+# Calculate total area of RENABAP settlements in hectares (POSGAR projection is in meters)
+renabap_total_area_ha = renabap_pba_intersect.geometry.area.sum() / 10000  # Convert m² to hectares
+la_plata_area_ha = la_plata.geometry.iloc[0].area / 10000 
+percentage_coverage = (renabap_total_area_ha / la_plata_area_ha) * 100
+
 # Get common bounds for all maps
 common_bounds = la_plata.total_bounds
 
 # Intersect settlements with hazard zones
 settlement_hazard = gpd.overlay(renabap_pba_intersect, peligro, how="intersection")
 ```
+
+Hay un total de `python len(renabap_pba_intersect)` barrios populares en el Partido de La Plata, que representan `python renabap_pba_intersect['familias_aproximadas'].sum()` familias. Estos barrios ocupan `python renabap_total_area_ha` hectáreas del Partido de La Plata, o `python percentage_coverage` por ciento del partido.
+
+## Fuentes de datos
+
+
+
+### RENABAP
+
+El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
+
+
 
 ```{python}
 fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
@@ -284,44 +293,33 @@ fig2, ax2 = create_consistent_map("Datos de población GHSL", common_bounds)
 import numpy.ma as ma
 ghsl_masked = ma.masked_where(ghsl_clipped.values[0] == 0, ghsl_clipped.values[0])
 
-# Calculate jenks breaks for GHSL data (excluding nodata values and zeros)
+# Use continuous log scale for GHSL data (excluding nodata values and zeros)
 ghsl_valid = (ghsl_clipped.values[0] != -200) & (ghsl_clipped.values[0] != 0)
 ghsl_valid_data = ghsl_clipped.values[0][ghsl_valid]
-jenks_breaks = jenks_breaks(ghsl_valid_data, n_classes=10)
 
 # Use plasma colormap from matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 plasma_cmap = plt.cm.plasma
 
 # Reproject GHSL data to Web Mercator to match the map's coordinate system
 ghsl_clipped_3857 = ghsl_clipped.rio.reproject("EPSG:3857")
 
-# Ensure the reprojected data covers the entire map area
-# Instead of clipping, let's make sure the data extends beyond the map bounds
-# This will prevent the "box-ish" appearance at the edges
-
-# Create masked array for the reprojected and clipped data
-# Mask out both zeros AND nodata values to make areas outside the clipped zone transparent
+# Mask out zeros AND nodata values
 ghsl_masked_3857 = ma.masked_where(
     (ghsl_clipped_3857.values[0] == 0) | (ghsl_clipped_3857.values[0] == -200),
     ghsl_clipped_3857.values[0]
 )
 
-# Plot GHSL raster with jenks classification and zero masking
+# Plot GHSL raster with continuous log scale and zero masking
+# Use power normalization to emphasize distinctions without extreme compression
 im = ax2.imshow(
     ghsl_masked_3857,
     extent=[ghsl_clipped_3857.x.min(), ghsl_clipped_3857.x.max(), 
             ghsl_clipped_3857.y.min(), ghsl_clipped_3857.y.max()],
     cmap=plasma_cmap,
-    alpha=0.75,
-    vmin=jenks_breaks[0],
-    vmax=jenks_breaks[-1]
+    alpha=0.75
 )
-
-# Add colorbar legend at the bottom with better positioning
-cbar = plt.colorbar(im, ax=ax2, orientation='horizontal', 
-                    location='bottom', shrink=0.6, aspect=40, pad=0.15)
-cbar.set_label('Población GHSL', fontsize=10)
 
 plt.tight_layout()
 plt.show()
