@@ -3,6 +3,8 @@ title: "RENABAP"
 subtitle: "Análisis de la exposición poblacional a peligros de inundación en el Partido de La Plata"
 ---
 
+## Resumen ejecutivo
+
 ## Objetivos
 
 El objetivo principal de este análisis es calcular con mayor precisión la exposición poblacional en la región del Partido de La Plata, comparando el enfoque actual de interpolación por área de datos del RENABAP con enfoques de mapeo dasimétrico de mayor resolución utilizando datos de la Capa Global de Asentamientos Humanos (GHSL) y el conjunto de datos de edificios abiertos de Google-Microsoft OpenStreetMap.
@@ -14,7 +16,10 @@ Para lograr este objetivo, necesitamos:
 3. **Crear estimaciones robustas**: Generar un rango de posibles exposiciones poblacionales para informar la toma de decisiones
 4. **Priorizar recursos**: Identificar áreas donde se requiera recopilación de datos más precisa
 
+## Contexto
+
 ## Fuentes de datos
+
 ```{python}
 
 
@@ -104,6 +109,19 @@ def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
                 xycoords=ax.transAxes)
 
 
+def add_la_plata_outline(ax):
+    """Add the outline of Partido de La Plata to a map."""
+    la_plata_3857 = la_plata.to_crs("EPSG:3857")
+    la_plata_3857.plot(
+        ax=ax,
+        facecolor='none',
+        edgecolor='black',
+        linewidth=0.5,
+        linestyle='--',
+        legend=False,
+        zorder=5
+    )
+
 def create_consistent_map(title, bounds=None):
     """Create a map with consistent styling and basemap."""
     fig, ax = setup_base_map(bounds=bounds)
@@ -113,6 +131,9 @@ def create_consistent_map(title, bounds=None):
 
     # Add north arrow
     add_north_arrow(ax)
+
+    # Add La Plata partido outline
+    add_la_plata_outline(ax)
 
     # Set title
     ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
@@ -151,7 +172,6 @@ def wfs_to_gdf(
 
 El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
 
-
 ```{python}
 
 ### import data
@@ -170,10 +190,6 @@ peligro = peligro.to_crs(USE_CRS)
 peligro_bounds = peligro.total_bounds
 peligro_bbox = box(*peligro_bounds)
 
-renabap_pba_intersect = renabap_pba[
-    renabap_pba.geometry.intersects(peligro_bbox)
-].copy()
-
 partidos = wfs_to_gdf(
     wfs_url="https://geo.arba.gov.ar/geoserver/idera/wfs",
     layer_name="idera:Departamento",
@@ -181,11 +197,28 @@ partidos = wfs_to_gdf(
 )
 
 partidos = partidos.to_crs(USE_CRS)
-
 la_plata = partidos[partidos["fna"] == "Partido de La Plata"]
 
+# Obtener la geometría principal
+main_geom = la_plata.geometry.iloc[0]
+
+# Si es un MultiPolygon, mantener solo el polígono más grande (el partido principal)
+# Esto elimina la pequeña isla que aparece en los datos
+if main_geom.geom_type == 'MultiPolygon':
+    # Obtener todos los polígonos y mantener el que tenga mayor área
+    largest_polygon = max(main_geom.geoms, key=lambda p: p.area)
+    la_plata.geometry.iloc[0] = largest_polygon
+
+la_plata_bbox = la_plata.geometry.iloc[0]
+
+renabap_pba_intersect = renabap_pba[
+    renabap_pba.geometry.intersects(la_plata_bbox)
+].copy()
+
+
+
 # Get common bounds for all maps
-common_bounds = renabap_pba_intersect.total_bounds
+common_bounds = la_plata.total_bounds
 
 # Intersect settlements with hazard zones
 settlement_hazard = gpd.overlay(renabap_pba_intersect, peligro, how="intersection")
@@ -207,6 +240,7 @@ renabap_pba_intersect_3857.plot(
     zorder=10
 )
 
+
 plt.tight_layout()
 plt.show()
 ```
@@ -214,7 +248,6 @@ plt.show()
 ### GHSL
 
 La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php) [@ghsl_pop2023a] es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación [@tellman2021]. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019].
-
 
 ```{python}
 
@@ -298,8 +331,6 @@ plt.show()
 
 Los datos de [Google-Microsoft-OSM Open Buildings - combined by VIDA](https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access) [@google_microsoft_osm_buildings] representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google's V3 Open Buildings, Microsoft's GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido [exitosamente aplicados a evaluaciones de riesgo de inundación por empresas globales de riesgo financiero como ICE](https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities), demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.
 
-
-
 ```{python}
 
 #| cache: false
@@ -377,7 +408,11 @@ buildings = fetch_buildings(renabap_pba_intersect)
 
 # Reproject buildings to match the analysis CRS
 buildings_proj = buildings.to_crs(USE_CRS)
+
+# clip the buildings to the partido de la plata
+buildings_proj = buildings_proj.clip(la_plata)
 ```
+
 ```{python}
 # Map 3: Building footprints
 fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
@@ -399,7 +434,9 @@ plt.show()
 ## Metodología y procesamiento
 
 ### Interpolación por area
+
 La [interpolación areal](https://pysal.org/tobler/notebooks/01_interpolation_methods_overview.html) es un método simple en el que las variables de los datos fuente se ponderan según la superposición entre polígonos fuente y objetivo, luego se reagregan para ajustarse a las geometrías de los polígonos objetivo. En nuestro análisis, esto significa distribuir proporcionalmente la población de cada barrio popular según el área de intersección con diferentes niveles de peligro de inundación. El analasis original de la exposición poblacional a peligros de inundación en la región del Partido de La Plata se realizó utilizando este método.
+
 ```{python}
 # Ensure both GeoDataFrames have the same CRS
 if renabap_pba_intersect.crs != peligro.crs:
@@ -464,8 +501,8 @@ renabap_tidy = pd.DataFrame(renabap_tidy)
 
 ### Cuenta de edificios
 
+### Mapeo dasymetrico
 
-### Mapeo dasymetrico 
 El [mapeo dasimétrico](https://support.esri.com/en-us/gis-dictionary/dasymetric-mapping) reorganiza datos cartográficos de una unidad de recolección en áreas más precisas, modificando los límites originales usando datos de apoyo relacionados. Por ejemplo, un atributo de población organizado por tracto censal se vuelve más significativo cuando se eliminan áreas donde es razonable inferir que la gente no vive (cuerpos de agua, terrenos vacíos). En nuestro caso, utilizamos datos GHSL y huellas de edificios como información auxiliar para mejorar la precisión de las estimaciones de distribución poblacional.
 
 #### Mapeo dasymetrico con datos de edificios
@@ -666,6 +703,10 @@ ghsl_tidy = pd.DataFrame(ghsl_tidy)
 ```
 
 ## Resultados y conclusiones
+
+### Comparación de métodos
+
+### Exposición por barrio
 
 ```{python}
 # Join all three dataframes by id_renabap and peligrosidad
@@ -900,18 +941,14 @@ barrio_summary = barrio_summary.fillna(0)
 
 # Columns are already properly named from the aggregation
 
-# Sort by fam_expuestas_edificios in descending order
-barrio_summary = barrio_summary.sort_values("fam_expuestas_edificios", ascending=False)
-
 from itables import show
 
-# Sort by fam_expuestas_edificios in descending order
-barrio_summary = barrio_summary.sort_values("fam_expuestas_edificios", ascending=False)
+# Sort by nombre_barrio and peligrosidad in descending order
+barrio_summary = barrio_summary.sort_values(["nombre_barrio", "peligrosidad"], ascending=True)
 
 # Display as interactive table with pagination
 show(barrio_summary)
 ```
-
 
 This map is based on the "edificios" method, but could be replicated for the "area" or "GHSL" methods just as easily.
 
@@ -927,6 +964,7 @@ edificios_data = final_tidy[
 
 # Convert to GeoDataFrame and reproject geometries to EPSG:3857 for proper plotting
 edificios_gdf = gpd.GeoDataFrame(edificios_data, geometry='geometry', crs='EPSG:5349')
+edificios_gdf = edificios_gdf.clip(la_plata)
 edificios_gdf_3857 = edificios_gdf.to_crs('EPSG:3857')
 
 # Import matplotlib colormap using the correct syntax
@@ -989,4 +1027,6 @@ plt.tight_layout()
 plt.show()
 ```
 
-## Referencias
+### Exposición por cuenca
+
+### Exposición por eje
