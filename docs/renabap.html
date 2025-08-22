@@ -298,7 +298,7 @@ div.csl-indent {
 </section>
 <section id="contexto" class="level2" data-number="3.3">
 <h2 data-number="3.3" class="anchored" data-anchor-id="contexto"><span class="header-section-number">3.3</span> Contexto</h2>
-<div id="19ba612e" class="cell" data-execution_count="1">
+<div id="40a45110" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -501,10 +501,81 @@ div.csl-indent {
 <span id="cb1-198"><a href="#cb1-198" aria-hidden="true" tabindex="-1"></a>    wfs <span class="op">=</span> WebFeatureService(url<span class="op">=</span>wfs_url, version<span class="op">=</span><span class="st">"2.0.0"</span>)</span>
 <span id="cb1-199"><a href="#cb1-199" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> wfs.getfeature(typename<span class="op">=</span>layer_name, srsname<span class="op">=</span>srs)</span>
 <span id="cb1-200"><a href="#cb1-200" aria-hidden="true" tabindex="-1"></a>    gdf <span class="op">=</span> gpd.read_file(BytesIO(response.read()))</span>
-<span id="cb1-201"><a href="#cb1-201" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> gdf</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-201"><a href="#cb1-201" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> gdf</span>
+<span id="cb1-202"><a href="#cb1-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-203"><a href="#cb1-203" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-204"><a href="#cb1-204" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_exposure_tidy_data(data, id_column, peligrosidad_column, method_suffix, </span>
+<span id="cb1-205"><a href="#cb1-205" aria-hidden="true" tabindex="-1"></a>                            exposure_values, exclude_zero<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb1-207"><a href="#cb1-207" aria-hidden="true" tabindex="-1"></a><span class="co">    Create tidy exposure dataset in a standardized format.</span></span>
+<span id="cb1-208"><a href="#cb1-208" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb1-209"><a href="#cb1-209" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb1-210"><a href="#cb1-210" aria-hidden="true" tabindex="-1"></a><span class="co">        data: DataFrame containing the base data</span></span>
+<span id="cb1-211"><a href="#cb1-211" aria-hidden="true" tabindex="-1"></a><span class="co">        id_column: Column name for the identifier (e.g., 'id_renabap', 'Cuenca', 'eje')</span></span>
+<span id="cb1-212"><a href="#cb1-212" aria-hidden="true" tabindex="-1"></a><span class="co">        peligrosidad_column: Column name for hazard level</span></span>
+<span id="cb1-213"><a href="#cb1-213" aria-hidden="true" tabindex="-1"></a><span class="co">        method_suffix: Suffix for the exposure column (e.g., 'areal', 'ghsl', 'edificios')</span></span>
+<span id="cb1-214"><a href="#cb1-214" aria-hidden="true" tabindex="-1"></a><span class="co">        exposure_values: Series or array of exposure values matching data rows</span></span>
+<span id="cb1-215"><a href="#cb1-215" aria-hidden="true" tabindex="-1"></a><span class="co">        exclude_zero: Whether to exclude zero exposure values</span></span>
+<span id="cb1-216"><a href="#cb1-216" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb1-217"><a href="#cb1-217" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb1-218"><a href="#cb1-218" aria-hidden="true" tabindex="-1"></a><span class="co">        pd.DataFrame: Tidy format dataframe with id, peligrosidad, and exposure columns</span></span>
+<span id="cb1-219"><a href="#cb1-219" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a>    tidy_data <span class="op">=</span> []</span>
+<span id="cb1-221"><a href="#cb1-221" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> idx, (_, row) <span class="kw">in</span> <span class="bu">enumerate</span>(data.iterrows()):</span>
+<span id="cb1-222"><a href="#cb1-222" aria-hidden="true" tabindex="-1"></a>        exposure_value <span class="op">=</span> exposure_values.iloc[idx] <span class="cf">if</span> <span class="bu">hasattr</span>(exposure_values, <span class="st">'iloc'</span>) <span class="cf">else</span> exposure_values[idx]</span>
+<span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb1-224"><a href="#cb1-224" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> exclude_zero <span class="kw">and</span> exposure_value <span class="op">&lt;=</span> <span class="dv">0</span>:</span>
+<span id="cb1-225"><a href="#cb1-225" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb1-226"><a href="#cb1-226" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb1-227"><a href="#cb1-227" aria-hidden="true" tabindex="-1"></a>        tidy_data.append({</span>
+<span id="cb1-228"><a href="#cb1-228" aria-hidden="true" tabindex="-1"></a>            id_column: row[id_column],</span>
+<span id="cb1-229"><a href="#cb1-229" aria-hidden="true" tabindex="-1"></a>            <span class="st">"peligrosidad"</span>: row[peligrosidad_column],</span>
+<span id="cb1-230"><a href="#cb1-230" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"fam_expuestas_</span><span class="sc">{</span>method_suffix<span class="sc">}</span><span class="ss">"</span>: exposure_value,</span>
+<span id="cb1-231"><a href="#cb1-231" aria-hidden="true" tabindex="-1"></a>        })</span>
+<span id="cb1-232"><a href="#cb1-232" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb1-233"><a href="#cb1-233" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pd.DataFrame(tidy_data)</span>
+<span id="cb1-234"><a href="#cb1-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-235"><a href="#cb1-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-236"><a href="#cb1-236" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_wide_exposure_dataframe(areal_data, ghsl_data, buildings_data, </span>
+<span id="cb1-237"><a href="#cb1-237" aria-hidden="true" tabindex="-1"></a>                                 id_columns, exclude_hazard_value<span class="op">=</span><span class="st">"none"</span>):</span>
+<span id="cb1-238"><a href="#cb1-238" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb1-239"><a href="#cb1-239" aria-hidden="true" tabindex="-1"></a><span class="co">    Create wide format exposure dataframe by merging tidy datasets.</span></span>
+<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb1-241"><a href="#cb1-241" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb1-242"><a href="#cb1-242" aria-hidden="true" tabindex="-1"></a><span class="co">        areal_data: Tidy dataframe with areal interpolation results</span></span>
+<span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a><span class="co">        ghsl_data: Tidy dataframe with GHSL dasymetric results  </span></span>
+<span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a><span class="co">        buildings_data: Tidy dataframe with buildings dasymetric results</span></span>
+<span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a><span class="co">        id_columns: List of columns to merge on (e.g., ['id_renabap', 'peligrosidad'])</span></span>
+<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="co">        exclude_hazard_value: Hazard value to exclude from results</span></span>
+<span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a><span class="co">        pd.DataFrame: Wide format dataframe with all exposure methods</span></span>
+<span id="cb1-250"><a href="#cb1-250" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb1-251"><a href="#cb1-251" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Filter out non-hazard values</span></span>
+<span id="cb1-252"><a href="#cb1-252" aria-hidden="true" tabindex="-1"></a>    areal_filtered <span class="op">=</span> areal_data[areal_data[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> exclude_hazard_value]</span>
+<span id="cb1-253"><a href="#cb1-253" aria-hidden="true" tabindex="-1"></a>    ghsl_filtered <span class="op">=</span> ghsl_data[ghsl_data[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> exclude_hazard_value]</span>
+<span id="cb1-254"><a href="#cb1-254" aria-hidden="true" tabindex="-1"></a>    buildings_filtered <span class="op">=</span> buildings_data[buildings_data[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> exclude_hazard_value]</span>
+<span id="cb1-255"><a href="#cb1-255" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb1-256"><a href="#cb1-256" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Apply column mapping for buildings if needed</span></span>
+<span id="cb1-257"><a href="#cb1-257" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"fam_expuestas_buildings"</span> <span class="kw">in</span> buildings_filtered.columns:</span>
+<span id="cb1-258"><a href="#cb1-258" aria-hidden="true" tabindex="-1"></a>        buildings_filtered <span class="op">=</span> buildings_filtered.rename(</span>
+<span id="cb1-259"><a href="#cb1-259" aria-hidden="true" tabindex="-1"></a>            columns<span class="op">=</span>{<span class="st">"fam_expuestas_buildings"</span>: <span class="st">"fam_expuestas_edificios"</span>}</span>
+<span id="cb1-260"><a href="#cb1-260" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb1-261"><a href="#cb1-261" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb1-262"><a href="#cb1-262" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Merge all datasets</span></span>
+<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a>    wide_data <span class="op">=</span> (</span>
+<span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a>        areal_filtered</span>
+<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a>        .merge(ghsl_filtered, on<span class="op">=</span>id_columns, how<span class="op">=</span><span class="st">"outer"</span>)</span>
+<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a>        .merge(buildings_filtered, on<span class="op">=</span>id_columns, how<span class="op">=</span><span class="st">"outer"</span>)</span>
+<span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fill NaN values with 0</span></span>
+<span id="cb1-270"><a href="#cb1-270" aria-hidden="true" tabindex="-1"></a>    wide_data <span class="op">=</span> wide_data.fillna(<span class="dv">0</span>)</span>
+<span id="cb1-271"><a href="#cb1-271" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb1-272"><a href="#cb1-272" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> wide_data</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
-<div id="18b1e845" class="cell" data-execution_count="2">
+<div id="d5381ea0" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>response <span class="op">=</span> requests.get(RENABAP_URL)</span>
@@ -602,7 +673,7 @@ div.csl-indent {
 <section id="renabap" class="level3" data-number="3.4.1">
 <h3 data-number="3.4.1" class="anchored" data-anchor-id="renabap"><span class="header-section-number">3.4.1</span> RENABAP</h3>
 <p>El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el <a href="https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares">Observatorio de Barrios Populares</a>. Los datos fueron obtenidos a través del <a href="https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa">Mapa de Barrios Populares</a> y están disponibles para <a href="https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson">descarga como GeoJSON</a>.</p>
-<div id="c84db206" class="cell" data-cache="true" data-execution_count="3">
+<div id="eb308abd" class="cell" data-cache="true" data-execution_count="3">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>fig1, ax1 <span class="op">=</span> create_consistent_map(<span class="st">"Asentamientos RENABAP en La Plata"</span>, common_bounds)</span>
@@ -624,7 +695,7 @@ div.csl-indent {
 </div>
 </div>
 </div>
-<div id="ca619502" class="cell" data-execution_count="4">
+<div id="b773bbb2" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>peligro_clipped <span class="op">=</span> gpd.clip(peligro, la_plata)</span>
@@ -666,7 +737,7 @@ div.csl-indent {
 <section id="ghsl" class="level3" data-number="3.4.2">
 <h3 data-number="3.4.2" class="anchored" data-anchor-id="ghsl"><span class="header-section-number">3.4.2</span> GHSL</h3>
 <p>La <a href="https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php">Capa Global de Asentamientos Humanos (Global Human Settlement Layer)</a> <span class="citation" data-cites="ghsl_pop2023a">(<a href="references.html#ref-ghsl_pop2023a" role="doc-biblioref">Schiavina et al. 2023</a>)</span> es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación <span class="citation" data-cites="tellman2021">(<a href="references.html#ref-tellman2021" role="doc-biblioref">Tellman et al. 2021</a>)</span>. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución <span class="citation" data-cites="smith2019">(<a href="references.html#ref-smith2019" role="doc-biblioref">Smith et al. 2019</a>)</span>.</p>
-<div id="d825a21c" class="cell" data-execution_count="5">
+<div id="40a8d2c1" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load GHSL data with dask chunking for memory efficiency</span></span>
@@ -684,7 +755,7 @@ div.csl-indent {
 <span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
-<div id="8b616dee" class="cell" data-execution_count="6">
+<div id="5e2305d6" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>fig2, ax2 <span class="op">=</span> create_consistent_map(<span class="st">"Datos de población GHSL"</span>, common_bounds)</span>
@@ -731,7 +802,7 @@ div.csl-indent {
 <section id="google-microsoft-osm-open-buildings" class="level3" data-number="3.4.3">
 <h3 data-number="3.4.3" class="anchored" data-anchor-id="google-microsoft-osm-open-buildings"><span class="header-section-number">3.4.3</span> Google-Microsoft-OSM Open Buildings</h3>
 <p>Los datos de <a href="https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access">Google-Microsoft-OSM Open Buildings - combined by VIDA</a> <span class="citation" data-cites="google_microsoft_osm_buildings">(<a href="references.html#ref-google_microsoft_osm_buildings" role="doc-biblioref">VIDA 2023</a>)</span> representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google’s V3 Open Buildings, Microsoft’s GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido <a href="https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities">exitosamente aplicados a evaluaciones de riesgo de inundación por empresas globales de riesgo financiero como ICE</a>, demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.</p>
-<div id="955079b6" class="cell" data-execution_count="7">
+<div id="0bf16534" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fetch_buildings(geodataframe, temp_file<span class="op">=</span><span class="st">"buildings_filtered.parquet"</span>):</span>
@@ -813,7 +884,7 @@ div.csl-indent {
 <span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a>buildings_proj <span class="op">=</span> buildings_proj.clip(la_plata)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
-<div id="a6547d68" class="cell" data-execution_count="8">
+<div id="32228bbf" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>fig3, ax3 <span class="op">=</span> create_consistent_map(<span class="st">"Huellas de edificios"</span>, common_bounds)</span>
@@ -840,7 +911,7 @@ div.csl-indent {
 <section id="interpolación-por-area" class="level3" data-number="3.5.1">
 <h3 data-number="3.5.1" class="anchored" data-anchor-id="interpolación-por-area"><span class="header-section-number">3.5.1</span> Interpolación por area</h3>
 <p>La <a href="https://pysal.org/tobler/notebooks/01_interpolation_methods_overview.html">interpolación areal</a> es un método simple en el que las variables de los datos fuente se ponderan según la superposición entre polígonos fuente y objetivo, luego se reagregan para ajustarse a las geometrías de los polígonos objetivo. En nuestro análisis, esto significa distribuir proporcionalmente la población de cada barrio popular según el área de intersección con diferentes niveles de peligro de inundación. El analasis original de la exposición poblacional a peligros de inundación en la región del Partido de La Plata se realizó utilizando este método.</p>
-<div id="72df9e03" class="cell" data-execution_count="9">
+<div id="d2014e87" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> renabap_pba_intersect.crs <span class="op">!=</span> peligro.crs:</span>
@@ -884,58 +955,63 @@ div.csl-indent {
 <span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>        )</span>
 <span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        renabap_with_porciones.at[idx, <span class="ss">f"porcion_</span><span class="sc">{</span>level<span class="sc">}</span><span class="ss">"</span>] <span class="op">=</span> proportion</span>
 <span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Create barrio tidy format - only include hazard exposures &gt; 0</span></span>
-<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>barrio_areal_tidy <span class="op">=</span> []</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Create barrio tidy format using consolidated function</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>barrio_areal_rows <span class="op">=</span> []</span>
 <span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, row <span class="kw">in</span> renabap_with_porciones.iterrows():</span>
-<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add hazard exposures only if &gt; 0</span></span>
-<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> level <span class="kw">in</span> hazard_levels:</span>
-<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>        familias_expuestas <span class="op">=</span> row[<span class="ss">f"porcion_</span><span class="sc">{</span>level<span class="sc">}</span><span class="ss">"</span>] <span class="op">*</span> row[<span class="st">"familias_aproximadas"</span>]</span>
-<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> familias_expuestas <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>            barrio_areal_tidy.append(</span>
-<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>                {</span>
-<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"id_renabap"</span>: row[<span class="st">"id_renabap"</span>],</span>
-<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"peligrosidad"</span>: level,</span>
-<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"fam_expuestas_areal"</span>: familias_expuestas,</span>
-<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>                }</span>
-<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>barrio_areal_tidy <span class="op">=</span> pd.DataFrame(barrio_areal_tidy)</span>
-<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CUENCA AREAL EXPOSURE - aggregate from barrio level, avoiding double counting</span></span>
-<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the cuenca for each settlement - but handle settlements that cross cuenca boundaries</span></span>
-<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>settlement_cuenca_mapping <span class="op">=</span> settle_hazard_cuencas[</span>
-<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"id_renabap"</span>, <span class="st">"Cuenca"</span>]</span>
-<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a>].drop_duplicates()</span>
-<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a><span class="co"># Check if any settlements appear in multiple cuencas</span></span>
-<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a>settlement_counts <span class="op">=</span> settlement_cuenca_mapping[<span class="st">"id_renabap"</span>].value_counts()</span>
-<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>multi_cuenca_settlements <span class="op">=</span> settlement_counts[settlement_counts <span class="op">&gt;</span> <span class="dv">1</span>].index</span>
-<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(multi_cuenca_settlements) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For settlements in multiple cuencas, assign to the cuenca with largest intersection</span></span>
-<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For now, just take the first occurrence</span></span>
-<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a>    settlement_cuenca_mapping <span class="op">=</span> settlement_cuenca_mapping.drop_duplicates(</span>
-<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a>        subset<span class="op">=</span>[<span class="st">"id_renabap"</span>], keep<span class="op">=</span><span class="st">"first"</span></span>
-<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a>cuenca_areal_tidy <span class="op">=</span> barrio_areal_tidy[</span>
-<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>    barrio_areal_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE</span>
-<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a>].merge(settlement_cuenca_mapping, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
-<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>cuenca_areal_tidy <span class="op">=</span> (</span>
-<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a>    cuenca_areal_tidy.groupby([<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_areal"</span>]</span>
-<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
-<span id="cb9-82"><a href="#cb9-82" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
-<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. EJE AREAL EXPOSURE - same fix</span></span>
-<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a>cuenca_eje_mapping <span class="op">=</span> settle_hazard_cuencas[[<span class="st">"Cuenca"</span>, <span class="st">"eje"</span>]].drop_duplicates()</span>
-<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a>eje_areal_tidy <span class="op">=</span> cuenca_areal_tidy.merge(cuenca_eje_mapping, on<span class="op">=</span><span class="st">"Cuenca"</span>)</span>
-<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a>eje_areal_tidy <span class="op">=</span> (</span>
-<span id="cb9-90"><a href="#cb9-90" aria-hidden="true" tabindex="-1"></a>    eje_areal_tidy.groupby([<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_areal"</span>]</span>
-<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
-<span id="cb9-92"><a href="#cb9-92" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
-<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> level <span class="kw">in</span> hazard_levels:</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>        familias_expuestas <span class="op">=</span> row[<span class="ss">f"porcion_</span><span class="sc">{</span>level<span class="sc">}</span><span class="ss">"</span>] <span class="op">*</span> row[<span class="st">"familias_aproximadas"</span>]</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> familias_expuestas <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>            barrio_areal_rows.append({</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>                <span class="st">"id_renabap"</span>: row[<span class="st">"id_renabap"</span>],</span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>                <span class="st">"PELIGROSID"</span>: level,</span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>                <span class="st">"fam_expuestas"</span>: familias_expuestas,</span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>barrio_areal_temp <span class="op">=</span> pd.DataFrame(barrio_areal_rows)</span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a>barrio_areal_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>barrio_areal_temp,</span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"id_renabap"</span>, </span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>,</span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"areal"</span>,</span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>barrio_areal_temp[<span class="st">"fam_expuestas"</span>],</span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">True</span></span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CUENCA AREAL EXPOSURE - aggregate from barrio level, avoiding double counting</span></span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the cuenca for each settlement - but handle settlements that cross cuenca boundaries</span></span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a>settlement_cuenca_mapping <span class="op">=</span> settle_hazard_cuencas[</span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"id_renabap"</span>, <span class="st">"Cuenca"</span>]</span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a>].drop_duplicates()</span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a><span class="co"># Check if any settlements appear in multiple cuencas</span></span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>settlement_counts <span class="op">=</span> settlement_cuenca_mapping[<span class="st">"id_renabap"</span>].value_counts()</span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a>multi_cuenca_settlements <span class="op">=</span> settlement_counts[settlement_counts <span class="op">&gt;</span> <span class="dv">1</span>].index</span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(multi_cuenca_settlements) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For settlements in multiple cuencas, assign to the cuenca with largest intersection</span></span>
+<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For now, just take the first occurrence</span></span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>    settlement_cuenca_mapping <span class="op">=</span> settlement_cuenca_mapping.drop_duplicates(</span>
+<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a>        subset<span class="op">=</span>[<span class="st">"id_renabap"</span>], keep<span class="op">=</span><span class="st">"first"</span></span>
+<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a>cuenca_areal_tidy <span class="op">=</span> barrio_areal_tidy[</span>
+<span id="cb9-82"><a href="#cb9-82" aria-hidden="true" tabindex="-1"></a>    barrio_areal_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE</span>
+<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a>].merge(settlement_cuenca_mapping, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a>cuenca_areal_tidy <span class="op">=</span> (</span>
+<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a>    cuenca_areal_tidy.groupby([<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_areal"</span>]</span>
+<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
+<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-90"><a href="#cb9-90" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. EJE AREAL EXPOSURE - same fix</span></span>
+<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a>cuenca_eje_mapping <span class="op">=</span> settle_hazard_cuencas[[<span class="st">"Cuenca"</span>, <span class="st">"eje"</span>]].drop_duplicates()</span>
+<span id="cb9-92"><a href="#cb9-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a>eje_areal_tidy <span class="op">=</span> cuenca_areal_tidy.merge(cuenca_eje_mapping, on<span class="op">=</span><span class="st">"Cuenca"</span>)</span>
+<span id="cb9-94"><a href="#cb9-94" aria-hidden="true" tabindex="-1"></a>eje_areal_tidy <span class="op">=</span> (</span>
+<span id="cb9-95"><a href="#cb9-95" aria-hidden="true" tabindex="-1"></a>    eje_areal_tidy.groupby([<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_areal"</span>]</span>
+<span id="cb9-96"><a href="#cb9-96" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
+<span id="cb9-97"><a href="#cb9-97" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb9-98"><a href="#cb9-98" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
 </section>
@@ -947,7 +1023,7 @@ div.csl-indent {
 <p>El <a href="https://support.esri.com/en-us/gis-dictionary/dasymetric-mapping">mapeo dasimétrico</a> reorganiza datos cartográficos de una unidad de recolección en áreas más precisas, modificando los límites originales usando datos de apoyo relacionados. Por ejemplo, un atributo de población organizado por tracto censal se vuelve más significativo cuando se eliminan áreas donde es razonable inferir que la gente no vive (cuerpos de agua, terrenos vacíos). En nuestro caso, utilizamos datos GHSL y huellas de edificios como información auxiliar para mejorar la precisión de las estimaciones de distribución poblacional.</p>
 <section id="mapeo-dasymetrico-con-datos-de-edificios" class="level4" data-number="3.5.3.1">
 <h4 data-number="3.5.3.1" class="anchored" data-anchor-id="mapeo-dasymetrico-con-datos-de-edificios"><span class="header-section-number">3.5.3.1</span> Mapeo dasymetrico con datos de edificios</h4>
-<div id="f1567fbd" class="cell" data-execution_count="10">
+<div id="cbd85430" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get ALL buildings per settlement (not just hazard-intersected ones)</span></span>
@@ -1071,94 +1147,102 @@ div.csl-indent {
 <span id="cb10-119"><a href="#cb10-119" aria-hidden="true" tabindex="-1"></a>            ignore_index<span class="op">=</span><span class="va">True</span>,</span>
 <span id="cb10-120"><a href="#cb10-120" aria-hidden="true" tabindex="-1"></a>        )</span>
 <span id="cb10-121"><a href="#cb10-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-122"><a href="#cb10-122" aria-hidden="true" tabindex="-1"></a><span class="co"># Create buildings tidy dataframe for barrio level</span></span>
-<span id="cb10-123"><a href="#cb10-123" aria-hidden="true" tabindex="-1"></a>buildings_barrio_tidy <span class="op">=</span> barrio_exposure[</span>
-<span id="cb10-124"><a href="#cb10-124" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"id_renabap"</span>, <span class="st">"PELIGROSID"</span>, <span class="st">"fam_expuestas"</span>]</span>
-<span id="cb10-125"><a href="#cb10-125" aria-hidden="true" tabindex="-1"></a>].copy()</span>
-<span id="cb10-126"><a href="#cb10-126" aria-hidden="true" tabindex="-1"></a>buildings_barrio_tidy <span class="op">=</span> buildings_barrio_tidy.rename(</span>
-<span id="cb10-127"><a href="#cb10-127" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>{<span class="st">"PELIGROSID"</span>: <span class="st">"peligrosidad"</span>, <span class="st">"fam_expuestas"</span>: <span class="st">"fam_expuestas_buildings"</span>}</span>
-<span id="cb10-128"><a href="#cb10-128" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-129"><a href="#cb10-129" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-130"><a href="#cb10-130" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Cuenca exposure - using total buildings across all settlements in cuenca</span></span>
-<span id="cb10-131"><a href="#cb10-131" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_hazard <span class="op">=</span> (</span>
-<span id="cb10-132"><a href="#cb10-132" aria-hidden="true" tabindex="-1"></a>    buildings_hazard.groupby([<span class="st">"Cuenca"</span>, <span class="st">"PELIGROSID"</span>])</span>
-<span id="cb10-133"><a href="#cb10-133" aria-hidden="true" tabindex="-1"></a>    .size()</span>
-<span id="cb10-134"><a href="#cb10-134" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"buildings_count"</span>)</span>
-<span id="cb10-135"><a href="#cb10-135" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-136"><a href="#cb10-136" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_total <span class="op">=</span> (</span>
-<span id="cb10-137"><a href="#cb10-137" aria-hidden="true" tabindex="-1"></a>    buildings_settlement.merge(</span>
-<span id="cb10-138"><a href="#cb10-138" aria-hidden="true" tabindex="-1"></a>        settle_hazard_cuencas[[<span class="st">"id_renabap"</span>, <span class="st">"Cuenca"</span>]].drop_duplicates(),</span>
-<span id="cb10-139"><a href="#cb10-139" aria-hidden="true" tabindex="-1"></a>        on<span class="op">=</span><span class="st">"id_renabap"</span>,</span>
-<span id="cb10-140"><a href="#cb10-140" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb10-141"><a href="#cb10-141" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Cuenca"</span>)</span>
-<span id="cb10-142"><a href="#cb10-142" aria-hidden="true" tabindex="-1"></a>    .size()</span>
-<span id="cb10-143"><a href="#cb10-143" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"total_buildings_all"</span>)</span>
-<span id="cb10-144"><a href="#cb10-144" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-145"><a href="#cb10-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-146"><a href="#cb10-146" aria-hidden="true" tabindex="-1"></a>cuenca_ratios <span class="op">=</span> buildings_cuenca_hazard.merge(buildings_cuenca_total, on<span class="op">=</span><span class="st">"Cuenca"</span>)</span>
-<span id="cb10-147"><a href="#cb10-147" aria-hidden="true" tabindex="-1"></a>cuenca_ratios[<span class="st">"ratio"</span>] <span class="op">=</span> (</span>
-<span id="cb10-148"><a href="#cb10-148" aria-hidden="true" tabindex="-1"></a>    cuenca_ratios[<span class="st">"buildings_count"</span>] <span class="op">/</span> cuenca_ratios[<span class="st">"total_buildings_all"</span>]</span>
-<span id="cb10-149"><a href="#cb10-149" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-150"><a href="#cb10-150" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-151"><a href="#cb10-151" aria-hidden="true" tabindex="-1"></a>cuenca_pop <span class="op">=</span> (</span>
-<span id="cb10-152"><a href="#cb10-152" aria-hidden="true" tabindex="-1"></a>    settle_hazard_cuencas.drop_duplicates(<span class="st">"id_renabap"</span>)</span>
-<span id="cb10-153"><a href="#cb10-153" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Cuenca"</span>)[<span class="st">"familias_aproximadas"</span>]</span>
-<span id="cb10-154"><a href="#cb10-154" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
-<span id="cb10-155"><a href="#cb10-155" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
-<span id="cb10-156"><a href="#cb10-156" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-157"><a href="#cb10-157" aria-hidden="true" tabindex="-1"></a>cuenca_exposure <span class="op">=</span> cuenca_ratios.merge(cuenca_pop, on<span class="op">=</span><span class="st">"Cuenca"</span>)</span>
-<span id="cb10-158"><a href="#cb10-158" aria-hidden="true" tabindex="-1"></a>cuenca_exposure[<span class="st">"fam_expuestas"</span>] <span class="op">=</span> (</span>
-<span id="cb10-159"><a href="#cb10-159" aria-hidden="true" tabindex="-1"></a>    cuenca_exposure[<span class="st">"ratio"</span>] <span class="op">*</span> cuenca_exposure[<span class="st">"familias_aproximadas"</span>]</span>
-<span id="cb10-160"><a href="#cb10-160" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-161"><a href="#cb10-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-162"><a href="#cb10-162" aria-hidden="true" tabindex="-1"></a><span class="co"># Create buildings tidy dataframe for cuenca level</span></span>
-<span id="cb10-163"><a href="#cb10-163" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_tidy <span class="op">=</span> cuenca_exposure[</span>
-<span id="cb10-164"><a href="#cb10-164" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"Cuenca"</span>, <span class="st">"PELIGROSID"</span>, <span class="st">"fam_expuestas"</span>]</span>
-<span id="cb10-165"><a href="#cb10-165" aria-hidden="true" tabindex="-1"></a>].copy()</span>
-<span id="cb10-166"><a href="#cb10-166" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_tidy <span class="op">=</span> buildings_cuenca_tidy.rename(</span>
-<span id="cb10-167"><a href="#cb10-167" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>{<span class="st">"PELIGROSID"</span>: <span class="st">"peligrosidad"</span>, <span class="st">"fam_expuestas"</span>: <span class="st">"fam_expuestas_buildings"</span>}</span>
-<span id="cb10-168"><a href="#cb10-168" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-169"><a href="#cb10-169" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-170"><a href="#cb10-170" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Eje exposure - using total buildings across all settlements in eje</span></span>
-<span id="cb10-171"><a href="#cb10-171" aria-hidden="true" tabindex="-1"></a>buildings_eje_hazard <span class="op">=</span> (</span>
-<span id="cb10-172"><a href="#cb10-172" aria-hidden="true" tabindex="-1"></a>    buildings_hazard.groupby([<span class="st">"eje"</span>, <span class="st">"PELIGROSID"</span>])</span>
-<span id="cb10-173"><a href="#cb10-173" aria-hidden="true" tabindex="-1"></a>    .size()</span>
-<span id="cb10-174"><a href="#cb10-174" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"buildings_count"</span>)</span>
-<span id="cb10-175"><a href="#cb10-175" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-176"><a href="#cb10-176" aria-hidden="true" tabindex="-1"></a>buildings_eje_total <span class="op">=</span> (</span>
-<span id="cb10-177"><a href="#cb10-177" aria-hidden="true" tabindex="-1"></a>    buildings_settlement.merge(</span>
-<span id="cb10-178"><a href="#cb10-178" aria-hidden="true" tabindex="-1"></a>        settle_hazard_cuencas[[<span class="st">"id_renabap"</span>, <span class="st">"eje"</span>]].drop_duplicates(), on<span class="op">=</span><span class="st">"id_renabap"</span></span>
-<span id="cb10-179"><a href="#cb10-179" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb10-180"><a href="#cb10-180" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"eje"</span>)</span>
-<span id="cb10-181"><a href="#cb10-181" aria-hidden="true" tabindex="-1"></a>    .size()</span>
-<span id="cb10-182"><a href="#cb10-182" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"total_buildings_all"</span>)</span>
-<span id="cb10-183"><a href="#cb10-183" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-184"><a href="#cb10-184" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-185"><a href="#cb10-185" aria-hidden="true" tabindex="-1"></a>eje_ratios <span class="op">=</span> buildings_eje_hazard.merge(buildings_eje_total, on<span class="op">=</span><span class="st">"eje"</span>)</span>
-<span id="cb10-186"><a href="#cb10-186" aria-hidden="true" tabindex="-1"></a>eje_ratios[<span class="st">"ratio"</span>] <span class="op">=</span> eje_ratios[<span class="st">"buildings_count"</span>] <span class="op">/</span> eje_ratios[<span class="st">"total_buildings_all"</span>]</span>
-<span id="cb10-187"><a href="#cb10-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-188"><a href="#cb10-188" aria-hidden="true" tabindex="-1"></a>eje_pop <span class="op">=</span> (</span>
-<span id="cb10-189"><a href="#cb10-189" aria-hidden="true" tabindex="-1"></a>    settle_hazard_cuencas.drop_duplicates(<span class="st">"id_renabap"</span>)</span>
-<span id="cb10-190"><a href="#cb10-190" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"eje"</span>)[<span class="st">"familias_aproximadas"</span>]</span>
-<span id="cb10-191"><a href="#cb10-191" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
-<span id="cb10-192"><a href="#cb10-192" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
-<span id="cb10-193"><a href="#cb10-193" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-194"><a href="#cb10-194" aria-hidden="true" tabindex="-1"></a>eje_exposure <span class="op">=</span> eje_ratios.merge(eje_pop, on<span class="op">=</span><span class="st">"eje"</span>)</span>
-<span id="cb10-195"><a href="#cb10-195" aria-hidden="true" tabindex="-1"></a>eje_exposure[<span class="st">"fam_expuestas"</span>] <span class="op">=</span> (</span>
-<span id="cb10-196"><a href="#cb10-196" aria-hidden="true" tabindex="-1"></a>    eje_exposure[<span class="st">"ratio"</span>] <span class="op">*</span> eje_exposure[<span class="st">"familias_aproximadas"</span>]</span>
+<span id="cb10-122"><a href="#cb10-122" aria-hidden="true" tabindex="-1"></a><span class="co"># Create buildings tidy dataframe for barrio level using consolidated function</span></span>
+<span id="cb10-123"><a href="#cb10-123" aria-hidden="true" tabindex="-1"></a>buildings_barrio_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb10-124"><a href="#cb10-124" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>barrio_exposure,</span>
+<span id="cb10-125"><a href="#cb10-125" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"id_renabap"</span>,</span>
+<span id="cb10-126"><a href="#cb10-126" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>, </span>
+<span id="cb10-127"><a href="#cb10-127" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"buildings"</span>,</span>
+<span id="cb10-128"><a href="#cb10-128" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>barrio_exposure[<span class="st">"fam_expuestas"</span>],</span>
+<span id="cb10-129"><a href="#cb10-129" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span>  <span class="co"># Keep all values including zeros for completeness</span></span>
+<span id="cb10-130"><a href="#cb10-130" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-131"><a href="#cb10-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-132"><a href="#cb10-132" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Cuenca exposure - using total buildings across all settlements in cuenca</span></span>
+<span id="cb10-133"><a href="#cb10-133" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_hazard <span class="op">=</span> (</span>
+<span id="cb10-134"><a href="#cb10-134" aria-hidden="true" tabindex="-1"></a>    buildings_hazard.groupby([<span class="st">"Cuenca"</span>, <span class="st">"PELIGROSID"</span>])</span>
+<span id="cb10-135"><a href="#cb10-135" aria-hidden="true" tabindex="-1"></a>    .size()</span>
+<span id="cb10-136"><a href="#cb10-136" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"buildings_count"</span>)</span>
+<span id="cb10-137"><a href="#cb10-137" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-138"><a href="#cb10-138" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_total <span class="op">=</span> (</span>
+<span id="cb10-139"><a href="#cb10-139" aria-hidden="true" tabindex="-1"></a>    buildings_settlement.merge(</span>
+<span id="cb10-140"><a href="#cb10-140" aria-hidden="true" tabindex="-1"></a>        settle_hazard_cuencas[[<span class="st">"id_renabap"</span>, <span class="st">"Cuenca"</span>]].drop_duplicates(),</span>
+<span id="cb10-141"><a href="#cb10-141" aria-hidden="true" tabindex="-1"></a>        on<span class="op">=</span><span class="st">"id_renabap"</span>,</span>
+<span id="cb10-142"><a href="#cb10-142" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-143"><a href="#cb10-143" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Cuenca"</span>)</span>
+<span id="cb10-144"><a href="#cb10-144" aria-hidden="true" tabindex="-1"></a>    .size()</span>
+<span id="cb10-145"><a href="#cb10-145" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"total_buildings_all"</span>)</span>
+<span id="cb10-146"><a href="#cb10-146" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-147"><a href="#cb10-147" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-148"><a href="#cb10-148" aria-hidden="true" tabindex="-1"></a>cuenca_ratios <span class="op">=</span> buildings_cuenca_hazard.merge(buildings_cuenca_total, on<span class="op">=</span><span class="st">"Cuenca"</span>)</span>
+<span id="cb10-149"><a href="#cb10-149" aria-hidden="true" tabindex="-1"></a>cuenca_ratios[<span class="st">"ratio"</span>] <span class="op">=</span> (</span>
+<span id="cb10-150"><a href="#cb10-150" aria-hidden="true" tabindex="-1"></a>    cuenca_ratios[<span class="st">"buildings_count"</span>] <span class="op">/</span> cuenca_ratios[<span class="st">"total_buildings_all"</span>]</span>
+<span id="cb10-151"><a href="#cb10-151" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-152"><a href="#cb10-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-153"><a href="#cb10-153" aria-hidden="true" tabindex="-1"></a>cuenca_pop <span class="op">=</span> (</span>
+<span id="cb10-154"><a href="#cb10-154" aria-hidden="true" tabindex="-1"></a>    settle_hazard_cuencas.drop_duplicates(<span class="st">"id_renabap"</span>)</span>
+<span id="cb10-155"><a href="#cb10-155" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Cuenca"</span>)[<span class="st">"familias_aproximadas"</span>]</span>
+<span id="cb10-156"><a href="#cb10-156" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
+<span id="cb10-157"><a href="#cb10-157" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb10-158"><a href="#cb10-158" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-159"><a href="#cb10-159" aria-hidden="true" tabindex="-1"></a>cuenca_exposure <span class="op">=</span> cuenca_ratios.merge(cuenca_pop, on<span class="op">=</span><span class="st">"Cuenca"</span>)</span>
+<span id="cb10-160"><a href="#cb10-160" aria-hidden="true" tabindex="-1"></a>cuenca_exposure[<span class="st">"fam_expuestas"</span>] <span class="op">=</span> (</span>
+<span id="cb10-161"><a href="#cb10-161" aria-hidden="true" tabindex="-1"></a>    cuenca_exposure[<span class="st">"ratio"</span>] <span class="op">*</span> cuenca_exposure[<span class="st">"familias_aproximadas"</span>]</span>
+<span id="cb10-162"><a href="#cb10-162" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-163"><a href="#cb10-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-164"><a href="#cb10-164" aria-hidden="true" tabindex="-1"></a><span class="co"># Create buildings tidy dataframe for cuenca level using consolidated function</span></span>
+<span id="cb10-165"><a href="#cb10-165" aria-hidden="true" tabindex="-1"></a>buildings_cuenca_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb10-166"><a href="#cb10-166" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>cuenca_exposure,</span>
+<span id="cb10-167"><a href="#cb10-167" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"Cuenca"</span>,</span>
+<span id="cb10-168"><a href="#cb10-168" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>,</span>
+<span id="cb10-169"><a href="#cb10-169" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"buildings"</span>, </span>
+<span id="cb10-170"><a href="#cb10-170" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>cuenca_exposure[<span class="st">"fam_expuestas"</span>],</span>
+<span id="cb10-171"><a href="#cb10-171" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
+<span id="cb10-172"><a href="#cb10-172" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-173"><a href="#cb10-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-174"><a href="#cb10-174" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Eje exposure - using total buildings across all settlements in eje</span></span>
+<span id="cb10-175"><a href="#cb10-175" aria-hidden="true" tabindex="-1"></a>buildings_eje_hazard <span class="op">=</span> (</span>
+<span id="cb10-176"><a href="#cb10-176" aria-hidden="true" tabindex="-1"></a>    buildings_hazard.groupby([<span class="st">"eje"</span>, <span class="st">"PELIGROSID"</span>])</span>
+<span id="cb10-177"><a href="#cb10-177" aria-hidden="true" tabindex="-1"></a>    .size()</span>
+<span id="cb10-178"><a href="#cb10-178" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"buildings_count"</span>)</span>
+<span id="cb10-179"><a href="#cb10-179" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-180"><a href="#cb10-180" aria-hidden="true" tabindex="-1"></a>buildings_eje_total <span class="op">=</span> (</span>
+<span id="cb10-181"><a href="#cb10-181" aria-hidden="true" tabindex="-1"></a>    buildings_settlement.merge(</span>
+<span id="cb10-182"><a href="#cb10-182" aria-hidden="true" tabindex="-1"></a>        settle_hazard_cuencas[[<span class="st">"id_renabap"</span>, <span class="st">"eje"</span>]].drop_duplicates(), on<span class="op">=</span><span class="st">"id_renabap"</span></span>
+<span id="cb10-183"><a href="#cb10-183" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-184"><a href="#cb10-184" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"eje"</span>)</span>
+<span id="cb10-185"><a href="#cb10-185" aria-hidden="true" tabindex="-1"></a>    .size()</span>
+<span id="cb10-186"><a href="#cb10-186" aria-hidden="true" tabindex="-1"></a>    .reset_index(name<span class="op">=</span><span class="st">"total_buildings_all"</span>)</span>
+<span id="cb10-187"><a href="#cb10-187" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-188"><a href="#cb10-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-189"><a href="#cb10-189" aria-hidden="true" tabindex="-1"></a>eje_ratios <span class="op">=</span> buildings_eje_hazard.merge(buildings_eje_total, on<span class="op">=</span><span class="st">"eje"</span>)</span>
+<span id="cb10-190"><a href="#cb10-190" aria-hidden="true" tabindex="-1"></a>eje_ratios[<span class="st">"ratio"</span>] <span class="op">=</span> eje_ratios[<span class="st">"buildings_count"</span>] <span class="op">/</span> eje_ratios[<span class="st">"total_buildings_all"</span>]</span>
+<span id="cb10-191"><a href="#cb10-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-192"><a href="#cb10-192" aria-hidden="true" tabindex="-1"></a>eje_pop <span class="op">=</span> (</span>
+<span id="cb10-193"><a href="#cb10-193" aria-hidden="true" tabindex="-1"></a>    settle_hazard_cuencas.drop_duplicates(<span class="st">"id_renabap"</span>)</span>
+<span id="cb10-194"><a href="#cb10-194" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"eje"</span>)[<span class="st">"familias_aproximadas"</span>]</span>
+<span id="cb10-195"><a href="#cb10-195" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
+<span id="cb10-196"><a href="#cb10-196" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
 <span id="cb10-197"><a href="#cb10-197" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb10-198"><a href="#cb10-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-199"><a href="#cb10-199" aria-hidden="true" tabindex="-1"></a><span class="co"># Create buildings tidy dataframe for eje level</span></span>
-<span id="cb10-200"><a href="#cb10-200" aria-hidden="true" tabindex="-1"></a>buildings_eje_tidy <span class="op">=</span> eje_exposure[[<span class="st">"eje"</span>, <span class="st">"PELIGROSID"</span>, <span class="st">"fam_expuestas"</span>]].copy()</span>
-<span id="cb10-201"><a href="#cb10-201" aria-hidden="true" tabindex="-1"></a>buildings_eje_tidy <span class="op">=</span> buildings_eje_tidy.rename(</span>
-<span id="cb10-202"><a href="#cb10-202" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>{<span class="st">"PELIGROSID"</span>: <span class="st">"peligrosidad"</span>, <span class="st">"fam_expuestas"</span>: <span class="st">"fam_expuestas_buildings"</span>}</span>
-<span id="cb10-203"><a href="#cb10-203" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb10-198"><a href="#cb10-198" aria-hidden="true" tabindex="-1"></a>eje_exposure <span class="op">=</span> eje_ratios.merge(eje_pop, on<span class="op">=</span><span class="st">"eje"</span>)</span>
+<span id="cb10-199"><a href="#cb10-199" aria-hidden="true" tabindex="-1"></a>eje_exposure[<span class="st">"fam_expuestas"</span>] <span class="op">=</span> (</span>
+<span id="cb10-200"><a href="#cb10-200" aria-hidden="true" tabindex="-1"></a>    eje_exposure[<span class="st">"ratio"</span>] <span class="op">*</span> eje_exposure[<span class="st">"familias_aproximadas"</span>]</span>
+<span id="cb10-201"><a href="#cb10-201" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-202"><a href="#cb10-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-203"><a href="#cb10-203" aria-hidden="true" tabindex="-1"></a><span class="co"># Create buildings tidy dataframe for eje level using consolidated function</span></span>
+<span id="cb10-204"><a href="#cb10-204" aria-hidden="true" tabindex="-1"></a>buildings_eje_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb10-205"><a href="#cb10-205" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>eje_exposure,</span>
+<span id="cb10-206"><a href="#cb10-206" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"eje"</span>, </span>
+<span id="cb10-207"><a href="#cb10-207" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>,</span>
+<span id="cb10-208"><a href="#cb10-208" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"buildings"</span>,</span>
+<span id="cb10-209"><a href="#cb10-209" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>eje_exposure[<span class="st">"fam_expuestas"</span>], </span>
+<span id="cb10-210"><a href="#cb10-210" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
+<span id="cb10-211"><a href="#cb10-211" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
 </section>
 <section id="mapeo-dasymetrico-con-datos-ghsl" class="level4" data-number="3.5.3.2">
 <h4 data-number="3.5.3.2" class="anchored" data-anchor-id="mapeo-dasymetrico-con-datos-ghsl"><span class="header-section-number">3.5.3.2</span> Mapeo dasymetrico con datos GHSL</h4>
-<div id="7bf2e6ea" class="cell" data-execution_count="11">
+<div id="f7779935" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: Calculate the total GHSL population per barrio popular using zonal statistics</span></span>
@@ -1242,8 +1326,8 @@ div.csl-indent {
 <span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a><span class="co"># GHSL downscaling for all three levels using the same approach</span></span>
 <span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. BARRIO-HAZARD EXPOSURE (your existing approach)</span></span>
-<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a>ghsl_barrio_tidy <span class="op">=</span> []</span>
+<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. BARRIO-HAZARD EXPOSURE using consolidated approach</span></span>
+<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a>ghsl_barrio_exposure <span class="op">=</span> []</span>
 <span id="cb11-84"><a href="#cb11-84" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, row <span class="kw">in</span> settlement_hazard.iterrows():</span>
 <span id="cb11-85"><a href="#cb11-85" aria-hidden="true" tabindex="-1"></a>    stats <span class="op">=</span> zonal_stats(</span>
 <span id="cb11-86"><a href="#cb11-86" aria-hidden="true" tabindex="-1"></a>        [row.geometry],</span>
@@ -1253,81 +1337,105 @@ div.csl-indent {
 <span id="cb11-90"><a href="#cb11-90" aria-hidden="true" tabindex="-1"></a>        nodata<span class="op">=</span>NODATA_VALUE,</span>
 <span id="cb11-91"><a href="#cb11-91" aria-hidden="true" tabindex="-1"></a>    )[<span class="dv">0</span>]</span>
 <span id="cb11-92"><a href="#cb11-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-93"><a href="#cb11-93" aria-hidden="true" tabindex="-1"></a>    ghsl_barrio_tidy.append(</span>
+<span id="cb11-93"><a href="#cb11-93" aria-hidden="true" tabindex="-1"></a>    ghsl_barrio_exposure.append(</span>
 <span id="cb11-94"><a href="#cb11-94" aria-hidden="true" tabindex="-1"></a>        {</span>
 <span id="cb11-95"><a href="#cb11-95" aria-hidden="true" tabindex="-1"></a>            <span class="st">"id_renabap"</span>: row[<span class="st">"id_renabap"</span>],</span>
-<span id="cb11-96"><a href="#cb11-96" aria-hidden="true" tabindex="-1"></a>            <span class="st">"peligrosidad"</span>: row[<span class="st">"PELIGROSID"</span>],</span>
-<span id="cb11-97"><a href="#cb11-97" aria-hidden="true" tabindex="-1"></a>            <span class="st">"fam_expuestas_ghsl"</span>: stats[<span class="st">"sum"</span>] <span class="cf">if</span> stats[<span class="st">"sum"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> <span class="dv">0</span>,</span>
+<span id="cb11-96"><a href="#cb11-96" aria-hidden="true" tabindex="-1"></a>            <span class="st">"PELIGROSID"</span>: row[<span class="st">"PELIGROSID"</span>],</span>
+<span id="cb11-97"><a href="#cb11-97" aria-hidden="true" tabindex="-1"></a>            <span class="st">"fam_expuestas"</span>: stats[<span class="st">"sum"</span>] <span class="cf">if</span> stats[<span class="st">"sum"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> <span class="dv">0</span>,</span>
 <span id="cb11-98"><a href="#cb11-98" aria-hidden="true" tabindex="-1"></a>        }</span>
 <span id="cb11-99"><a href="#cb11-99" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb11-100"><a href="#cb11-100" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-101"><a href="#cb11-101" aria-hidden="true" tabindex="-1"></a>ghsl_barrio_tidy <span class="op">=</span> pd.DataFrame(ghsl_barrio_tidy)</span>
-<span id="cb11-102"><a href="#cb11-102" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-103"><a href="#cb11-103" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CUENCA-HAZARD EXPOSURE</span></span>
-<span id="cb11-104"><a href="#cb11-104" aria-hidden="true" tabindex="-1"></a>ghsl_cuenca_tidy <span class="op">=</span> []</span>
-<span id="cb11-105"><a href="#cb11-105" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> cuenca <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"Cuenca"</span>].unique():</span>
-<span id="cb11-106"><a href="#cb11-106" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> peligro <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>].unique():</span>
-<span id="cb11-107"><a href="#cb11-107" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Get all geometries for this cuenca-hazard combination</span></span>
-<span id="cb11-108"><a href="#cb11-108" aria-hidden="true" tabindex="-1"></a>        geoms <span class="op">=</span> settle_hazard_cuencas[</span>
-<span id="cb11-109"><a href="#cb11-109" aria-hidden="true" tabindex="-1"></a>            (settle_hazard_cuencas[<span class="st">"Cuenca"</span>] <span class="op">==</span> cuenca)</span>
-<span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;</span> (settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>] <span class="op">==</span> peligro)</span>
-<span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a>        ].geometry.tolist()</span>
-<span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> geoms:</span>
-<span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a>            stats <span class="op">=</span> zonal_stats(</span>
-<span id="cb11-115"><a href="#cb11-115" aria-hidden="true" tabindex="-1"></a>                geoms,</span>
-<span id="cb11-116"><a href="#cb11-116" aria-hidden="true" tabindex="-1"></a>                familias_downscaled,</span>
-<span id="cb11-117"><a href="#cb11-117" aria-hidden="true" tabindex="-1"></a>                affine<span class="op">=</span>reference_transform,</span>
-<span id="cb11-118"><a href="#cb11-118" aria-hidden="true" tabindex="-1"></a>                stats<span class="op">=</span>[<span class="st">"sum"</span>],</span>
-<span id="cb11-119"><a href="#cb11-119" aria-hidden="true" tabindex="-1"></a>                nodata<span class="op">=</span>NODATA_VALUE,</span>
-<span id="cb11-120"><a href="#cb11-120" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb11-121"><a href="#cb11-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-122"><a href="#cb11-122" aria-hidden="true" tabindex="-1"></a>            total_pop <span class="op">=</span> <span class="bu">sum</span>(</span>
-<span id="cb11-123"><a href="#cb11-123" aria-hidden="true" tabindex="-1"></a>                [stat[<span class="st">"sum"</span>] <span class="cf">if</span> stat[<span class="st">"sum"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> <span class="dv">0</span> <span class="cf">for</span> stat <span class="kw">in</span> stats]</span>
-<span id="cb11-124"><a href="#cb11-124" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb11-125"><a href="#cb11-125" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-126"><a href="#cb11-126" aria-hidden="true" tabindex="-1"></a>            ghsl_cuenca_tidy.append(</span>
-<span id="cb11-127"><a href="#cb11-127" aria-hidden="true" tabindex="-1"></a>                {</span>
-<span id="cb11-128"><a href="#cb11-128" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"Cuenca"</span>: cuenca,</span>
-<span id="cb11-129"><a href="#cb11-129" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"peligrosidad"</span>: peligro,</span>
-<span id="cb11-130"><a href="#cb11-130" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"fam_expuestas_ghsl"</span>: total_pop,</span>
-<span id="cb11-131"><a href="#cb11-131" aria-hidden="true" tabindex="-1"></a>                }</span>
+<span id="cb11-101"><a href="#cb11-101" aria-hidden="true" tabindex="-1"></a>ghsl_barrio_temp <span class="op">=</span> pd.DataFrame(ghsl_barrio_exposure)</span>
+<span id="cb11-102"><a href="#cb11-102" aria-hidden="true" tabindex="-1"></a>ghsl_barrio_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb11-103"><a href="#cb11-103" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>ghsl_barrio_temp,</span>
+<span id="cb11-104"><a href="#cb11-104" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"id_renabap"</span>,</span>
+<span id="cb11-105"><a href="#cb11-105" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>,</span>
+<span id="cb11-106"><a href="#cb11-106" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"ghsl"</span>,</span>
+<span id="cb11-107"><a href="#cb11-107" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>ghsl_barrio_temp[<span class="st">"fam_expuestas"</span>],</span>
+<span id="cb11-108"><a href="#cb11-108" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
+<span id="cb11-109"><a href="#cb11-109" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CUENCA-HAZARD EXPOSURE using consolidated approach</span></span>
+<span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a>ghsl_cuenca_exposure <span class="op">=</span> []</span>
+<span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> cuenca <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"Cuenca"</span>].unique():</span>
+<span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> peligro <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>].unique():</span>
+<span id="cb11-115"><a href="#cb11-115" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Get all geometries for this cuenca-hazard combination</span></span>
+<span id="cb11-116"><a href="#cb11-116" aria-hidden="true" tabindex="-1"></a>        geoms <span class="op">=</span> settle_hazard_cuencas[</span>
+<span id="cb11-117"><a href="#cb11-117" aria-hidden="true" tabindex="-1"></a>            (settle_hazard_cuencas[<span class="st">"Cuenca"</span>] <span class="op">==</span> cuenca)</span>
+<span id="cb11-118"><a href="#cb11-118" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;</span> (settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>] <span class="op">==</span> peligro)</span>
+<span id="cb11-119"><a href="#cb11-119" aria-hidden="true" tabindex="-1"></a>        ].geometry.tolist()</span>
+<span id="cb11-120"><a href="#cb11-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-121"><a href="#cb11-121" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> geoms:</span>
+<span id="cb11-122"><a href="#cb11-122" aria-hidden="true" tabindex="-1"></a>            stats <span class="op">=</span> zonal_stats(</span>
+<span id="cb11-123"><a href="#cb11-123" aria-hidden="true" tabindex="-1"></a>                geoms,</span>
+<span id="cb11-124"><a href="#cb11-124" aria-hidden="true" tabindex="-1"></a>                familias_downscaled,</span>
+<span id="cb11-125"><a href="#cb11-125" aria-hidden="true" tabindex="-1"></a>                affine<span class="op">=</span>reference_transform,</span>
+<span id="cb11-126"><a href="#cb11-126" aria-hidden="true" tabindex="-1"></a>                stats<span class="op">=</span>[<span class="st">"sum"</span>],</span>
+<span id="cb11-127"><a href="#cb11-127" aria-hidden="true" tabindex="-1"></a>                nodata<span class="op">=</span>NODATA_VALUE,</span>
+<span id="cb11-128"><a href="#cb11-128" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb11-129"><a href="#cb11-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-130"><a href="#cb11-130" aria-hidden="true" tabindex="-1"></a>            total_pop <span class="op">=</span> <span class="bu">sum</span>(</span>
+<span id="cb11-131"><a href="#cb11-131" aria-hidden="true" tabindex="-1"></a>                [stat[<span class="st">"sum"</span>] <span class="cf">if</span> stat[<span class="st">"sum"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> <span class="dv">0</span> <span class="cf">for</span> stat <span class="kw">in</span> stats]</span>
 <span id="cb11-132"><a href="#cb11-132" aria-hidden="true" tabindex="-1"></a>            )</span>
 <span id="cb11-133"><a href="#cb11-133" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-134"><a href="#cb11-134" aria-hidden="true" tabindex="-1"></a>ghsl_cuenca_tidy <span class="op">=</span> pd.DataFrame(ghsl_cuenca_tidy)</span>
-<span id="cb11-135"><a href="#cb11-135" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-136"><a href="#cb11-136" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. EJE-HAZARD EXPOSURE</span></span>
-<span id="cb11-137"><a href="#cb11-137" aria-hidden="true" tabindex="-1"></a>ghsl_eje_tidy <span class="op">=</span> []</span>
-<span id="cb11-138"><a href="#cb11-138" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> eje <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"eje"</span>].unique():</span>
-<span id="cb11-139"><a href="#cb11-139" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> peligro <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>].unique():</span>
-<span id="cb11-140"><a href="#cb11-140" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Get all geometries for this eje-hazard combination</span></span>
-<span id="cb11-141"><a href="#cb11-141" aria-hidden="true" tabindex="-1"></a>        geoms <span class="op">=</span> settle_hazard_cuencas[</span>
-<span id="cb11-142"><a href="#cb11-142" aria-hidden="true" tabindex="-1"></a>            (settle_hazard_cuencas[<span class="st">"eje"</span>] <span class="op">==</span> eje)</span>
-<span id="cb11-143"><a href="#cb11-143" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;</span> (settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>] <span class="op">==</span> peligro)</span>
-<span id="cb11-144"><a href="#cb11-144" aria-hidden="true" tabindex="-1"></a>        ].geometry.tolist()</span>
-<span id="cb11-145"><a href="#cb11-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-146"><a href="#cb11-146" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> geoms:</span>
-<span id="cb11-147"><a href="#cb11-147" aria-hidden="true" tabindex="-1"></a>            stats <span class="op">=</span> zonal_stats(</span>
-<span id="cb11-148"><a href="#cb11-148" aria-hidden="true" tabindex="-1"></a>                geoms,</span>
-<span id="cb11-149"><a href="#cb11-149" aria-hidden="true" tabindex="-1"></a>                familias_downscaled,</span>
-<span id="cb11-150"><a href="#cb11-150" aria-hidden="true" tabindex="-1"></a>                affine<span class="op">=</span>reference_transform,</span>
-<span id="cb11-151"><a href="#cb11-151" aria-hidden="true" tabindex="-1"></a>                stats<span class="op">=</span>[<span class="st">"sum"</span>],</span>
-<span id="cb11-152"><a href="#cb11-152" aria-hidden="true" tabindex="-1"></a>                nodata<span class="op">=</span>NODATA_VALUE,</span>
-<span id="cb11-153"><a href="#cb11-153" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb11-154"><a href="#cb11-154" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-155"><a href="#cb11-155" aria-hidden="true" tabindex="-1"></a>            total_pop <span class="op">=</span> <span class="bu">sum</span>(</span>
-<span id="cb11-156"><a href="#cb11-156" aria-hidden="true" tabindex="-1"></a>                [stat[<span class="st">"sum"</span>] <span class="cf">if</span> stat[<span class="st">"sum"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> <span class="dv">0</span> <span class="cf">for</span> stat <span class="kw">in</span> stats]</span>
-<span id="cb11-157"><a href="#cb11-157" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb11-158"><a href="#cb11-158" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-159"><a href="#cb11-159" aria-hidden="true" tabindex="-1"></a>            ghsl_eje_tidy.append(</span>
-<span id="cb11-160"><a href="#cb11-160" aria-hidden="true" tabindex="-1"></a>                {</span>
-<span id="cb11-161"><a href="#cb11-161" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"eje"</span>: eje,</span>
-<span id="cb11-162"><a href="#cb11-162" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"peligrosidad"</span>: peligro,</span>
-<span id="cb11-163"><a href="#cb11-163" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"fam_expuestas_ghsl"</span>: total_pop,</span>
-<span id="cb11-164"><a href="#cb11-164" aria-hidden="true" tabindex="-1"></a>                }</span>
-<span id="cb11-165"><a href="#cb11-165" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb11-166"><a href="#cb11-166" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-167"><a href="#cb11-167" aria-hidden="true" tabindex="-1"></a>ghsl_eje_tidy <span class="op">=</span> pd.DataFrame(ghsl_eje_tidy)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb11-134"><a href="#cb11-134" aria-hidden="true" tabindex="-1"></a>            ghsl_cuenca_exposure.append(</span>
+<span id="cb11-135"><a href="#cb11-135" aria-hidden="true" tabindex="-1"></a>                {</span>
+<span id="cb11-136"><a href="#cb11-136" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"Cuenca"</span>: cuenca,</span>
+<span id="cb11-137"><a href="#cb11-137" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"PELIGROSID"</span>: peligro,</span>
+<span id="cb11-138"><a href="#cb11-138" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"fam_expuestas"</span>: total_pop,</span>
+<span id="cb11-139"><a href="#cb11-139" aria-hidden="true" tabindex="-1"></a>                }</span>
+<span id="cb11-140"><a href="#cb11-140" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb11-141"><a href="#cb11-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-142"><a href="#cb11-142" aria-hidden="true" tabindex="-1"></a>ghsl_cuenca_temp <span class="op">=</span> pd.DataFrame(ghsl_cuenca_exposure)</span>
+<span id="cb11-143"><a href="#cb11-143" aria-hidden="true" tabindex="-1"></a>ghsl_cuenca_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb11-144"><a href="#cb11-144" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>ghsl_cuenca_temp,</span>
+<span id="cb11-145"><a href="#cb11-145" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"Cuenca"</span>,</span>
+<span id="cb11-146"><a href="#cb11-146" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>, </span>
+<span id="cb11-147"><a href="#cb11-147" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"ghsl"</span>,</span>
+<span id="cb11-148"><a href="#cb11-148" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>ghsl_cuenca_temp[<span class="st">"fam_expuestas"</span>],</span>
+<span id="cb11-149"><a href="#cb11-149" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
+<span id="cb11-150"><a href="#cb11-150" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-151"><a href="#cb11-151" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-152"><a href="#cb11-152" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. EJE-HAZARD EXPOSURE using consolidated approach</span></span>
+<span id="cb11-153"><a href="#cb11-153" aria-hidden="true" tabindex="-1"></a>ghsl_eje_exposure <span class="op">=</span> []</span>
+<span id="cb11-154"><a href="#cb11-154" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> eje <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"eje"</span>].unique():</span>
+<span id="cb11-155"><a href="#cb11-155" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> peligro <span class="kw">in</span> settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>].unique():</span>
+<span id="cb11-156"><a href="#cb11-156" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Get all geometries for this eje-hazard combination</span></span>
+<span id="cb11-157"><a href="#cb11-157" aria-hidden="true" tabindex="-1"></a>        geoms <span class="op">=</span> settle_hazard_cuencas[</span>
+<span id="cb11-158"><a href="#cb11-158" aria-hidden="true" tabindex="-1"></a>            (settle_hazard_cuencas[<span class="st">"eje"</span>] <span class="op">==</span> eje)</span>
+<span id="cb11-159"><a href="#cb11-159" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;</span> (settle_hazard_cuencas[<span class="st">"PELIGROSID"</span>] <span class="op">==</span> peligro)</span>
+<span id="cb11-160"><a href="#cb11-160" aria-hidden="true" tabindex="-1"></a>        ].geometry.tolist()</span>
+<span id="cb11-161"><a href="#cb11-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-162"><a href="#cb11-162" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> geoms:</span>
+<span id="cb11-163"><a href="#cb11-163" aria-hidden="true" tabindex="-1"></a>            stats <span class="op">=</span> zonal_stats(</span>
+<span id="cb11-164"><a href="#cb11-164" aria-hidden="true" tabindex="-1"></a>                geoms,</span>
+<span id="cb11-165"><a href="#cb11-165" aria-hidden="true" tabindex="-1"></a>                familias_downscaled,</span>
+<span id="cb11-166"><a href="#cb11-166" aria-hidden="true" tabindex="-1"></a>                affine<span class="op">=</span>reference_transform,</span>
+<span id="cb11-167"><a href="#cb11-167" aria-hidden="true" tabindex="-1"></a>                stats<span class="op">=</span>[<span class="st">"sum"</span>],</span>
+<span id="cb11-168"><a href="#cb11-168" aria-hidden="true" tabindex="-1"></a>                nodata<span class="op">=</span>NODATA_VALUE,</span>
+<span id="cb11-169"><a href="#cb11-169" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb11-170"><a href="#cb11-170" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-171"><a href="#cb11-171" aria-hidden="true" tabindex="-1"></a>            total_pop <span class="op">=</span> <span class="bu">sum</span>(</span>
+<span id="cb11-172"><a href="#cb11-172" aria-hidden="true" tabindex="-1"></a>                [stat[<span class="st">"sum"</span>] <span class="cf">if</span> stat[<span class="st">"sum"</span>] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">else</span> <span class="dv">0</span> <span class="cf">for</span> stat <span class="kw">in</span> stats]</span>
+<span id="cb11-173"><a href="#cb11-173" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb11-174"><a href="#cb11-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-175"><a href="#cb11-175" aria-hidden="true" tabindex="-1"></a>            ghsl_eje_exposure.append(</span>
+<span id="cb11-176"><a href="#cb11-176" aria-hidden="true" tabindex="-1"></a>                {</span>
+<span id="cb11-177"><a href="#cb11-177" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"eje"</span>: eje,</span>
+<span id="cb11-178"><a href="#cb11-178" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"PELIGROSID"</span>: peligro,</span>
+<span id="cb11-179"><a href="#cb11-179" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"fam_expuestas"</span>: total_pop,</span>
+<span id="cb11-180"><a href="#cb11-180" aria-hidden="true" tabindex="-1"></a>                }</span>
+<span id="cb11-181"><a href="#cb11-181" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb11-182"><a href="#cb11-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-183"><a href="#cb11-183" aria-hidden="true" tabindex="-1"></a>ghsl_eje_temp <span class="op">=</span> pd.DataFrame(ghsl_eje_exposure)</span>
+<span id="cb11-184"><a href="#cb11-184" aria-hidden="true" tabindex="-1"></a>ghsl_eje_tidy <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb11-185"><a href="#cb11-185" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>ghsl_eje_temp,</span>
+<span id="cb11-186"><a href="#cb11-186" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"eje"</span>,</span>
+<span id="cb11-187"><a href="#cb11-187" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"PELIGROSID"</span>,</span>
+<span id="cb11-188"><a href="#cb11-188" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"ghsl"</span>, </span>
+<span id="cb11-189"><a href="#cb11-189" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>ghsl_eje_temp[<span class="st">"fam_expuestas"</span>],</span>
+<span id="cb11-190"><a href="#cb11-190" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
+<span id="cb11-191"><a href="#cb11-191" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
 </section>
@@ -1335,116 +1443,118 @@ div.csl-indent {
 </section>
 <section id="resultados" class="level2" data-number="3.6">
 <h2 data-number="3.6" class="anchored" data-anchor-id="resultados"><span class="header-section-number">3.6</span> Resultados</h2>
-<div id="2c688073" class="cell" data-execution_count="12">
+<div id="8cd19f91" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Mostrar código</summary>
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. BARRIO-LEVEL WIDE DATAFRAME</span></span>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. BARRIO-LEVEL WIDE DATAFRAME using consolidated function</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>renabap_info <span class="op">=</span> renabap_pba_intersect[[<span class="st">"id_renabap"</span>, <span class="st">"nombre_barrio"</span>]].drop_duplicates()</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>barrio_wide <span class="op">=</span> (</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    barrio_areal_tidy[barrio_areal_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    .merge(</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        ghsl_barrio_tidy[ghsl_barrio_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE],</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        on<span class="op">=</span>[<span class="st">"id_renabap"</span>, <span class="st">"peligrosidad"</span>],</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"outer"</span>,</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    .merge(</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>        buildings_barrio_tidy[buildings_barrio_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE].rename(</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>            columns<span class="op">=</span>COLUMN_MAPPINGS[<span class="st">"buildings_to_edificios"</span>]</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        ),</span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        on<span class="op">=</span>[<span class="st">"id_renabap"</span>, <span class="st">"peligrosidad"</span>],</span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"outer"</span>,</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    .merge(renabap_info, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>barrio_wide <span class="op">=</span> barrio_wide[</span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    [</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"id_renabap"</span>,</span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"nombre_barrio"</span>,</span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">"peligrosidad"</span>,</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">+</span> EXPOSURE_COLUMNS</span>
-<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>barrio_wide <span class="op">=</span> barrio_wide.fillna(<span class="dv">0</span>)</span>
-<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CUENCA-LEVEL WIDE DATAFRAME</span></span>
-<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>settlement_cuenca_mapping <span class="op">=</span> settle_hazard_cuencas[</span>
-<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"id_renabap"</span>, <span class="st">"Cuenca"</span>]</span>
-<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>].drop_duplicates()</span>
-<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>settlement_counts <span class="op">=</span> settlement_cuenca_mapping[<span class="st">"id_renabap"</span>].value_counts()</span>
-<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>multi_cuenca_settlements <span class="op">=</span> settlement_counts[settlement_counts <span class="op">&gt;</span> <span class="dv">1</span>].index</span>
-<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(multi_cuenca_settlements) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    settlement_cuenca_mapping <span class="op">=</span> settlement_cuenca_mapping.drop_duplicates(</span>
-<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>        subset<span class="op">=</span>[<span class="st">"id_renabap"</span>], keep<span class="op">=</span><span class="st">"first"</span></span>
-<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>cuenca_buildings_wide <span class="op">=</span> (</span>
-<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>    buildings_barrio_tidy[buildings_barrio_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
-<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a>    .merge(settlement_cuenca_mapping, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
-<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a>    .groupby([<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_buildings"</span>]</span>
-<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
-<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
-<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>cuenca_buildings_wide <span class="op">=</span> cuenca_buildings_wide.rename(</span>
-<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>COLUMN_MAPPINGS[<span class="st">"buildings_to_edificios"</span>]</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>barrio_wide <span class="op">=</span> create_wide_exposure_dataframe(</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    areal_data<span class="op">=</span>barrio_areal_tidy,</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    ghsl_data<span class="op">=</span>ghsl_barrio_tidy, </span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    buildings_data<span class="op">=</span>buildings_barrio_tidy,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    id_columns<span class="op">=</span>[<span class="st">"id_renabap"</span>, <span class="st">"peligrosidad"</span>],</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    exclude_hazard_value<span class="op">=</span>NON_HAZARD_VALUE</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Add barrio names and reorder columns</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>barrio_wide <span class="op">=</span> barrio_wide.merge(renabap_info, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>barrio_wide <span class="op">=</span> barrio_wide[</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"id_renabap"</span>,</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"nombre_barrio"</span>, </span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">"peligrosidad"</span>,</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">+</span> EXPOSURE_COLUMNS</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CUENCA-LEVEL WIDE DATAFRAME using consolidated function</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>settlement_cuenca_mapping <span class="op">=</span> settle_hazard_cuencas[</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"id_renabap"</span>, <span class="st">"Cuenca"</span>]</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>].drop_duplicates()</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>settlement_counts <span class="op">=</span> settlement_cuenca_mapping[<span class="st">"id_renabap"</span>].value_counts()</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>multi_cuenca_settlements <span class="op">=</span> settlement_counts[settlement_counts <span class="op">&gt;</span> <span class="dv">1</span>].index</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(multi_cuenca_settlements) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    settlement_cuenca_mapping <span class="op">=</span> settlement_cuenca_mapping.drop_duplicates(</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>        subset<span class="op">=</span>[<span class="st">"id_renabap"</span>], keep<span class="op">=</span><span class="st">"first"</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="co"># Aggregate buildings data from barrio to cuenca level</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>cuenca_buildings_wide <span class="op">=</span> (</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>    buildings_barrio_tidy[buildings_barrio_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>    .merge(settlement_cuenca_mapping, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    .groupby([<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_buildings"</span>]</span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to tidy format for the consolidated function</span></span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a>cuenca_buildings_tidy_for_merge <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>cuenca_buildings_wide,</span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"Cuenca"</span>,</span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"peligrosidad"</span>,</span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"buildings"</span>, </span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>cuenca_buildings_wide[<span class="st">"fam_expuestas_buildings"</span>],</span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
 <span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>cuenca_wide <span class="op">=</span> (</span>
-<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>    cuenca_areal_tidy[cuenca_areal_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
-<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>    .merge(</span>
-<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a>        ghsl_cuenca_tidy[ghsl_cuenca_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE],</span>
-<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>        on<span class="op">=</span>[<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>],</span>
-<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"outer"</span>,</span>
-<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a>    .merge(cuenca_buildings_wide, on<span class="op">=</span>[<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>], how<span class="op">=</span><span class="st">"outer"</span>)</span>
-<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a>cuenca_wide[<span class="st">"cuenca"</span>] <span class="op">=</span> cuenca_wide[<span class="st">"Cuenca"</span>].<span class="bu">str</span>.lower()</span>
-<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>cuenca_wide <span class="op">=</span> cuenca_wide[</span>
-<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a>    [</span>
-<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a>        <span class="st">"cuenca"</span>,</span>
-<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a>        <span class="st">"peligrosidad"</span>,</span>
-<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">+</span> EXPOSURE_COLUMNS</span>
-<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a>cuenca_wide <span class="op">=</span> cuenca_wide.fillna(<span class="dv">0</span>)</span>
-<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. EJE-LEVEL WIDE DATAFRAME</span></span>
-<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a>settlement_eje_mapping <span class="op">=</span> settle_hazard_cuencas[[<span class="st">"id_renabap"</span>, <span class="st">"eje"</span>]].drop_duplicates()</span>
-<span id="cb12-73"><a href="#cb12-73" aria-hidden="true" tabindex="-1"></a>eje_settlement_counts <span class="op">=</span> settlement_eje_mapping[<span class="st">"id_renabap"</span>].value_counts()</span>
-<span id="cb12-74"><a href="#cb12-74" aria-hidden="true" tabindex="-1"></a>multi_eje_settlements <span class="op">=</span> eje_settlement_counts[eje_settlement_counts <span class="op">&gt;</span> <span class="dv">1</span>].index</span>
-<span id="cb12-75"><a href="#cb12-75" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(multi_eje_settlements) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb12-76"><a href="#cb12-76" aria-hidden="true" tabindex="-1"></a>    settlement_eje_mapping <span class="op">=</span> settlement_eje_mapping.drop_duplicates(</span>
-<span id="cb12-77"><a href="#cb12-77" aria-hidden="true" tabindex="-1"></a>        subset<span class="op">=</span>[<span class="st">"id_renabap"</span>], keep<span class="op">=</span><span class="st">"first"</span></span>
-<span id="cb12-78"><a href="#cb12-78" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-79"><a href="#cb12-79" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-80"><a href="#cb12-80" aria-hidden="true" tabindex="-1"></a>eje_buildings_wide <span class="op">=</span> (</span>
-<span id="cb12-81"><a href="#cb12-81" aria-hidden="true" tabindex="-1"></a>    buildings_barrio_tidy[buildings_barrio_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
-<span id="cb12-82"><a href="#cb12-82" aria-hidden="true" tabindex="-1"></a>    .merge(settlement_eje_mapping, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
-<span id="cb12-83"><a href="#cb12-83" aria-hidden="true" tabindex="-1"></a>    .groupby([<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_buildings"</span>]</span>
-<span id="cb12-84"><a href="#cb12-84" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
-<span id="cb12-85"><a href="#cb12-85" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
-<span id="cb12-86"><a href="#cb12-86" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-87"><a href="#cb12-87" aria-hidden="true" tabindex="-1"></a>eje_buildings_wide <span class="op">=</span> eje_buildings_wide.rename(</span>
-<span id="cb12-88"><a href="#cb12-88" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>COLUMN_MAPPINGS[<span class="st">"buildings_to_edificios"</span>]</span>
-<span id="cb12-89"><a href="#cb12-89" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-90"><a href="#cb12-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-91"><a href="#cb12-91" aria-hidden="true" tabindex="-1"></a>eje_wide <span class="op">=</span> (</span>
-<span id="cb12-92"><a href="#cb12-92" aria-hidden="true" tabindex="-1"></a>    eje_areal_tidy[eje_areal_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
-<span id="cb12-93"><a href="#cb12-93" aria-hidden="true" tabindex="-1"></a>    .merge(</span>
-<span id="cb12-94"><a href="#cb12-94" aria-hidden="true" tabindex="-1"></a>        ghsl_eje_tidy[ghsl_eje_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE],</span>
-<span id="cb12-95"><a href="#cb12-95" aria-hidden="true" tabindex="-1"></a>        on<span class="op">=</span>[<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>],</span>
-<span id="cb12-96"><a href="#cb12-96" aria-hidden="true" tabindex="-1"></a>        how<span class="op">=</span><span class="st">"outer"</span>,</span>
-<span id="cb12-97"><a href="#cb12-97" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-98"><a href="#cb12-98" aria-hidden="true" tabindex="-1"></a>    .merge(eje_buildings_wide, on<span class="op">=</span>[<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>], how<span class="op">=</span><span class="st">"outer"</span>)</span>
-<span id="cb12-99"><a href="#cb12-99" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-100"><a href="#cb12-100" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-101"><a href="#cb12-101" aria-hidden="true" tabindex="-1"></a>eje_wide <span class="op">=</span> eje_wide[</span>
-<span id="cb12-102"><a href="#cb12-102" aria-hidden="true" tabindex="-1"></a>    [</span>
-<span id="cb12-103"><a href="#cb12-103" aria-hidden="true" tabindex="-1"></a>        <span class="st">"eje"</span>,</span>
-<span id="cb12-104"><a href="#cb12-104" aria-hidden="true" tabindex="-1"></a>        <span class="st">"peligrosidad"</span>,</span>
-<span id="cb12-105"><a href="#cb12-105" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">+</span> EXPOSURE_COLUMNS</span>
-<span id="cb12-106"><a href="#cb12-106" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb12-107"><a href="#cb12-107" aria-hidden="true" tabindex="-1"></a>eje_wide <span class="op">=</span> eje_wide.fillna(<span class="dv">0</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>cuenca_wide <span class="op">=</span> create_wide_exposure_dataframe(</span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>    areal_data<span class="op">=</span>cuenca_areal_tidy,</span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>    ghsl_data<span class="op">=</span>ghsl_cuenca_tidy,</span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a>    buildings_data<span class="op">=</span>cuenca_buildings_tidy_for_merge,</span>
+<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>    id_columns<span class="op">=</span>[<span class="st">"Cuenca"</span>, <span class="st">"peligrosidad"</span>], </span>
+<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a>    exclude_hazard_value<span class="op">=</span>NON_HAZARD_VALUE</span>
+<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a>cuenca_wide[<span class="st">"cuenca"</span>] <span class="op">=</span> cuenca_wide[<span class="st">"Cuenca"</span>].<span class="bu">str</span>.lower()</span>
+<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>cuenca_wide <span class="op">=</span> cuenca_wide[</span>
+<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>        <span class="st">"cuenca"</span>,</span>
+<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a>        <span class="st">"peligrosidad"</span>,</span>
+<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">+</span> EXPOSURE_COLUMNS</span>
+<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. EJE-LEVEL WIDE DATAFRAME using consolidated function</span></span>
+<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a>settlement_eje_mapping <span class="op">=</span> settle_hazard_cuencas[[<span class="st">"id_renabap"</span>, <span class="st">"eje"</span>]].drop_duplicates()</span>
+<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a>eje_settlement_counts <span class="op">=</span> settlement_eje_mapping[<span class="st">"id_renabap"</span>].value_counts()</span>
+<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a>multi_eje_settlements <span class="op">=</span> eje_settlement_counts[eje_settlement_counts <span class="op">&gt;</span> <span class="dv">1</span>].index</span>
+<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(multi_eje_settlements) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb12-73"><a href="#cb12-73" aria-hidden="true" tabindex="-1"></a>    settlement_eje_mapping <span class="op">=</span> settlement_eje_mapping.drop_duplicates(</span>
+<span id="cb12-74"><a href="#cb12-74" aria-hidden="true" tabindex="-1"></a>        subset<span class="op">=</span>[<span class="st">"id_renabap"</span>], keep<span class="op">=</span><span class="st">"first"</span></span>
+<span id="cb12-75"><a href="#cb12-75" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb12-76"><a href="#cb12-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-77"><a href="#cb12-77" aria-hidden="true" tabindex="-1"></a><span class="co"># Aggregate buildings data from barrio to eje level</span></span>
+<span id="cb12-78"><a href="#cb12-78" aria-hidden="true" tabindex="-1"></a>eje_buildings_wide <span class="op">=</span> (</span>
+<span id="cb12-79"><a href="#cb12-79" aria-hidden="true" tabindex="-1"></a>    buildings_barrio_tidy[buildings_barrio_tidy[<span class="st">"peligrosidad"</span>] <span class="op">!=</span> NON_HAZARD_VALUE]</span>
+<span id="cb12-80"><a href="#cb12-80" aria-hidden="true" tabindex="-1"></a>    .merge(settlement_eje_mapping, on<span class="op">=</span><span class="st">"id_renabap"</span>, how<span class="op">=</span><span class="st">"left"</span>)</span>
+<span id="cb12-81"><a href="#cb12-81" aria-hidden="true" tabindex="-1"></a>    .groupby([<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>])[<span class="st">"fam_expuestas_buildings"</span>]</span>
+<span id="cb12-82"><a href="#cb12-82" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">sum</span>()</span>
+<span id="cb12-83"><a href="#cb12-83" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb12-84"><a href="#cb12-84" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-85"><a href="#cb12-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-86"><a href="#cb12-86" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to tidy format for the consolidated function</span></span>
+<span id="cb12-87"><a href="#cb12-87" aria-hidden="true" tabindex="-1"></a>eje_buildings_tidy_for_merge <span class="op">=</span> create_exposure_tidy_data(</span>
+<span id="cb12-88"><a href="#cb12-88" aria-hidden="true" tabindex="-1"></a>    data<span class="op">=</span>eje_buildings_wide,</span>
+<span id="cb12-89"><a href="#cb12-89" aria-hidden="true" tabindex="-1"></a>    id_column<span class="op">=</span><span class="st">"eje"</span>,</span>
+<span id="cb12-90"><a href="#cb12-90" aria-hidden="true" tabindex="-1"></a>    peligrosidad_column<span class="op">=</span><span class="st">"peligrosidad"</span>,</span>
+<span id="cb12-91"><a href="#cb12-91" aria-hidden="true" tabindex="-1"></a>    method_suffix<span class="op">=</span><span class="st">"buildings"</span>,</span>
+<span id="cb12-92"><a href="#cb12-92" aria-hidden="true" tabindex="-1"></a>    exposure_values<span class="op">=</span>eje_buildings_wide[<span class="st">"fam_expuestas_buildings"</span>], </span>
+<span id="cb12-93"><a href="#cb12-93" aria-hidden="true" tabindex="-1"></a>    exclude_zero<span class="op">=</span><span class="va">False</span></span>
+<span id="cb12-94"><a href="#cb12-94" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-95"><a href="#cb12-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-96"><a href="#cb12-96" aria-hidden="true" tabindex="-1"></a>eje_wide <span class="op">=</span> create_wide_exposure_dataframe(</span>
+<span id="cb12-97"><a href="#cb12-97" aria-hidden="true" tabindex="-1"></a>    areal_data<span class="op">=</span>eje_areal_tidy,</span>
+<span id="cb12-98"><a href="#cb12-98" aria-hidden="true" tabindex="-1"></a>    ghsl_data<span class="op">=</span>ghsl_eje_tidy,</span>
+<span id="cb12-99"><a href="#cb12-99" aria-hidden="true" tabindex="-1"></a>    buildings_data<span class="op">=</span>eje_buildings_tidy_for_merge,</span>
+<span id="cb12-100"><a href="#cb12-100" aria-hidden="true" tabindex="-1"></a>    id_columns<span class="op">=</span>[<span class="st">"eje"</span>, <span class="st">"peligrosidad"</span>],</span>
+<span id="cb12-101"><a href="#cb12-101" aria-hidden="true" tabindex="-1"></a>    exclude_hazard_value<span class="op">=</span>NON_HAZARD_VALUE</span>
+<span id="cb12-102"><a href="#cb12-102" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-103"><a href="#cb12-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-104"><a href="#cb12-104" aria-hidden="true" tabindex="-1"></a>eje_wide <span class="op">=</span> eje_wide[</span>
+<span id="cb12-105"><a href="#cb12-105" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb12-106"><a href="#cb12-106" aria-hidden="true" tabindex="-1"></a>        <span class="st">"eje"</span>, </span>
+<span id="cb12-107"><a href="#cb12-107" aria-hidden="true" tabindex="-1"></a>        <span class="st">"peligrosidad"</span>,</span>
+<span id="cb12-108"><a href="#cb12-108" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">+</span> EXPOSURE_COLUMNS</span>
+<span id="cb12-109"><a href="#cb12-109" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
 <section id="comparación-de-métodos" class="level3" data-number="3.6.1">
@@ -1862,7 +1972,7 @@ Figure&nbsp;3.1: Análisis comparativo de métodos de estimación por barrio
 </figcaption>
 </figure>
 </div>
-<div id="35fab6fa" class="cell" data-execution_count="14">
+<div id="e199b72e" class="cell" data-execution_count="14">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> plot_method_map(</span>
@@ -1927,7 +2037,7 @@ Figure&nbsp;3.1: Análisis comparativo de métodos de estimación por barrio
 <span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a>    plt.show()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
-<div id="634bff33" class="cell" data-execution_count="15">
+<div id="e6a6fa61" class="cell" data-execution_count="15">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>area_data <span class="op">=</span> (</span>
@@ -2038,14 +2148,14 @@ Figure&nbsp;3.2: Comparación de métodos de estimación de exposición por barr
 </figcaption>
 </figure>
 </div>
-<div id="f51ec879" class="cell" data-execution_count="17">
+<div id="6ab74820" class="cell" data-execution_count="17">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>show(barrio_summary)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-display">
 <!--| quarto-html-table-processing: none -->
-<table id="itables_1e5659cb_192b_44a7_aead_ee7f417c25f9"><tbody><tr>
+<table id="itables_83951da2_687a_4f7b_9cf6_e5c8d3fe5f5a"><tbody><tr>
     <td style="vertical-align:middle; text-align:left">
     <a href="https://mwouts.github.io/itables/"><svg class="main-svg" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="64" viewbox="0 0 500 400" style="font-family: 'Droid Sans', sans-serif;">
     <g style="fill:#d9d7fc">
@@ -2111,7 +2221,7 @@ Figure&nbsp;3.2: Comparación de métodos de estimación de exposición por barr
 <script type="module">
     import { ITable, jQuery as $ } from 'https://www.unpkg.com/dt_for_itables@2.3.3/dt_bundle.js';
 
-    document.querySelectorAll("#itables_1e5659cb_192b_44a7_aead_ee7f417c25f9:not(.dataTable)").forEach(table => {
+    document.querySelectorAll("#itables_83951da2_687a_4f7b_9cf6_e5c8d3fe5f5a:not(.dataTable)").forEach(table => {
         if (!(table instanceof HTMLTableElement))
             return;
 
@@ -2213,14 +2323,14 @@ Figure&nbsp;3.3: Comparación de métodos de estimación de exposición por cuen
 </figcaption>
 </figure>
 </div>
-<div id="c72923bf" class="cell" data-execution_count="19">
+<div id="566aac87" class="cell" data-execution_count="19">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>show(cuenca_wide)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-display">
 <!--| quarto-html-table-processing: none -->
-<table id="itables_9dc7efda_5ddd_467a_93f5_13161c1ad387"><tbody><tr>
+<table id="itables_18d1169c_b595_4d37_a23f_5cc7d710faee"><tbody><tr>
     <td style="vertical-align:middle; text-align:left">
     <a href="https://mwouts.github.io/itables/"><svg class="main-svg" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="64" viewbox="0 0 500 400" style="font-family: 'Droid Sans', sans-serif;">
     <g style="fill:#d9d7fc">
@@ -2286,7 +2396,7 @@ Figure&nbsp;3.3: Comparación de métodos de estimación de exposición por cuen
 <script type="module">
     import { ITable, jQuery as $ } from 'https://www.unpkg.com/dt_for_itables@2.3.3/dt_bundle.js';
 
-    document.querySelectorAll("#itables_9dc7efda_5ddd_467a_93f5_13161c1ad387:not(.dataTable)").forEach(table => {
+    document.querySelectorAll("#itables_18d1169c_b595_4d37_a23f_5cc7d710faee:not(.dataTable)").forEach(table => {
         if (!(table instanceof HTMLTableElement))
             return;
 
@@ -2384,14 +2494,14 @@ Figure&nbsp;3.4: Comparación de métodos de estimación de exposición por eje 
 </figcaption>
 </figure>
 </div>
-<div id="4c9b68cb" class="cell" data-execution_count="21">
+<div id="6d95209d" class="cell" data-execution_count="21">
 <details class="code-fold">
 <summary>Mostrar código</summary>
 <div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>show(eje_wide)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-display">
 <!--| quarto-html-table-processing: none -->
-<table id="itables_6676df94_80e7_4d6d_aea2_f5cdf35414f0"><tbody><tr>
+<table id="itables_269eb9ca_ef76_4c0e_8d4d_398c87c402d6"><tbody><tr>
     <td style="vertical-align:middle; text-align:left">
     <a href="https://mwouts.github.io/itables/"><svg class="main-svg" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="64" viewbox="0 0 500 400" style="font-family: 'Droid Sans', sans-serif;">
     <g style="fill:#d9d7fc">
@@ -2457,7 +2567,7 @@ Figure&nbsp;3.4: Comparación de métodos de estimación de exposición por eje 
 <script type="module">
     import { ITable, jQuery as $ } from 'https://www.unpkg.com/dt_for_itables@2.3.3/dt_bundle.js';
 
-    document.querySelectorAll("#itables_6676df94_80e7_4d6d_aea2_f5cdf35414f0:not(.dataTable)").forEach(table => {
+    document.querySelectorAll("#itables_269eb9ca_ef76_4c0e_8d4d_398c87c402d6:not(.dataTable)").forEach(table => {
         if (!(table instanceof HTMLTableElement))
             return;
 
@@ -2923,7 +3033,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   </div>
 </nav>
 </div> <!-- /content -->
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","selector":".lightbox","loop":false,"openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","loop":false,"openEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

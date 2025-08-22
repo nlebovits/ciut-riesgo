@@ -96,9 +96,9 @@ PELIGROSIDAD_COLORS = {
 }
 
 METHOD_COLORS = {
-    "areal": PLASMA_CMAP(0.9),
+    "areal": PLASMA_CMAP(0.8),
     "ghsl": PLASMA_CMAP(0.5),
-    "edificios": PLASMA_CMAP(0.1),
+    "edificios": PLASMA_CMAP(0.2),
 }
 
 # Eje mapping for watershed analysis
