@@ -4,9 +4,13 @@ project:
 
 book:
   title: "CIUT Riesgo"
-  subtitle: "Leveraging Permitting and Zoning Data to Predict Upzoning Pressure in Philadelphia"
+  description: "Técnicas de analasis de riesgo hídrico en el Partido de La Plata"
   author: "Nissim Lebovits"
   date: today
+  cover-image: https://ciut.fau.unlp.edu.ar/wp-content/uploads/sites/33/elementor/thumbs/LOGO-ciut--qjf1cejyso9ssxlxj3wfu5ypvjc9u6swvp6q60jpj4.png
+  site-url: https://nlebovits.github.io/ciut-riesgo/
+  repo-url: https://github.com/nlebovits/ciut-riesgo
+  sharing: [twitter, facebook, linkedin]
 
   chapters:
     - index.qmd
@@ -22,11 +26,10 @@ format:
     toc: true
     toc_float: true
     theme: cosmo
+    code-link: true
     code-fold: true
     code-summary: "Mostrar código"
     number-sections: true
     fontsize: "11"
     lightbox: auto
-
-
 

@@ -44,16 +44,91 @@ import numpy.ma as ma
 from itables import show
 import matplotlib.cm as cm
 
-
+import seaborn as sns
 import rioxarray
 
+# =============================================================================
+# CONSTANTS AND CONFIGURATION
+# =============================================================================
 
-USE_CRS = "EPSG:5349"
+# Coordinate Reference Systems
+USE_CRS = "EPSG:5349"  # POSGAR 2007 / Argentina 4
+WEB_MERCATOR_CRS = "EPSG:3857"  # Web Mercator for visualization
+WGS84_CRS = "EPSG:4326"  # WGS84 for API calls
+
+# File paths
+BASE_PATH = "/home/nissim/Documents/dev/fulbright/ciut-riesgo"
+DATA_PATH = f"{BASE_PATH}/notebooks/data"
+PELIGRO_PATH = f"{DATA_PATH}/la_plata_pelig_2023_datos_originales.geojson"
+PARTIDOS_PATH = f"{DATA_PATH}/pba_partidos.geojson"
+CUENCAS_PATH = f"{BASE_PATH}/notebooks/cuencas_buenos_aires.geojson"
+BUILDINGS_PATH = f"{BASE_PATH}/notebooks/buildings_filtered.parquet"
+GHSL_PATH = "/home/nissim/Downloads/spatial/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13.tif"
+
+# Data URLs
+RENABAP_URL = "https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson"
+PARTIDOS_WFS_URL = "https://geo.arba.gov.ar/geoserver/idera/wfs"
+CUENCAS_API_URL = "https://services1.arcgis.com/atxllciEI8CHWvwW/ArcGIS/rest/services/Cuencas_BuenosAires_2023/FeatureServer/0/query"
+
+# Data processing constants
+HAZARD_LEVELS = ["baja", "media", "alta"]
+METHOD_NAMES = ["edificios", "ghsl", "areal"]
+EXPOSURE_COLUMNS = ["fam_expuestas_edificios", "fam_expuestas_ghsl", "fam_expuestas_areal"]
+NON_HAZARD_VALUE = "none"
+NODATA_VALUE = -200
+
+# Column mappings and renaming
+COLUMN_MAPPINGS = {
+    "buildings_to_edificios": {"fam_expuestas_buildings": "fam_expuestas_edificios"},
+    "peligrosid_to_peligrosidad": {"PELIGROSID": "peligrosidad"},
+    "method_cleanup_prefix": "fam_expuestas_"
+}
+
+# Visualization constants
+VISUALIZATION_CONFIG = {
+    "default_figsize": (12, 10),
+    "padding_x": 500,
+    "padding_y": 500,
+    "alpha_default": 0.75,
+    "alpha_buildings": 0.7,
+    "peligrosidad_categories": ["baja", "media", "alta"],
+    "plasma_cmap": plt.cm.plasma
+}
+
+# Color schemes for visualization
+PELIGROSIDAD_COLORS = {
+    "alta": plt.cm.plasma(0.8),
+    "media": plt.cm.plasma(0.5),
+    "baja": plt.cm.plasma(0.2),
+}
+
+METHOD_COLORS = {
+    "areal": plt.cm.plasma(0.9),
+    "ghsl": plt.cm.plasma(0.5),
+    "edificios": plt.cm.plasma(0.1),
+}
+
+# Eje mapping for watershed analysis
+EJE_MAPPING = {
+    "noreste": ["Area de Bañados", "Cuenca Arroyo Rodriguez-Don Carlos"],
+    "noroeste": ["Cuenca Arroyo Martín-Carnaval", "Cuenca Arroyo Pereyra"],
+    "central": ["Cuenca Arroyo del Gato"],
+    "sudoeste": ["Cuenca A° Maldonado", "Cuenca Río Samborombón"],
+    "sudeste": ["Cuenca Arroyo El Pescado"],
+}
 
 
-# Generic mapping functions
-def setup_base_map(figsize=(12, 10), bounds=None, padding_x=500, padding_y=500):
+
+def setup_base_map(figsize=None, bounds=None, padding_x=None, padding_y=None):
     """Create figure and set up basic map boundaries with padding."""
+    # Use constants for default values
+    if figsize is None:
+        figsize = VISUALIZATION_CONFIG["default_figsize"]
+    if padding_x is None:
+        padding_x = VISUALIZATION_CONFIG["padding_x"]
+    if padding_y is None:
+        padding_y = VISUALIZATION_CONFIG["padding_y"]
+    
     if bounds is None:
         bounds = renabap_pba_intersect.total_bounds
 
@@ -63,7 +138,7 @@ def setup_base_map(figsize=(12, 10), bounds=None, padding_x=500, padding_y=500):
         temp_bounds = gpd.GeoDataFrame(
             geometry=[box(bounds[0], bounds[1], bounds[2], bounds[3])], crs=USE_CRS
         )
-        bounds_3857 = temp_bounds.to_crs("EPSG:3857").total_bounds
+        bounds_3857 = temp_bounds.to_crs(WEB_MERCATOR_CRS).total_bounds
     else:
         bounds_3857 = bounds
 
@@ -75,7 +150,7 @@ def setup_base_map(figsize=(12, 10), bounds=None, padding_x=500, padding_y=500):
 
 def add_basemap(ax, zoom=13):
     """Add CartoDB basemap to the axes."""
-    # The axes are already in Web Mercator from setup_base_map
+
     ctx.add_basemap(
         ax,
         source=ctx.providers.CartoDB.PositronNoLabels,
@@ -103,7 +178,7 @@ def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
 
 def add_la_plata_outline(ax):
     """Add the outline of Partido de La Plata to a map."""
-    la_plata_3857 = la_plata.to_crs("EPSG:3857")
+    la_plata_3857 = la_plata.to_crs(WEB_MERCATOR_CRS)
     la_plata_3857.plot(
         ax=ax,
         facecolor="none",
@@ -119,19 +194,16 @@ def create_consistent_map(title, bounds=None):
     """Create a map with consistent styling and basemap."""
     fig, ax = setup_base_map(bounds=bounds)
 
-    # Add basemap
+
     add_basemap(ax)
 
-    # Add north arrow
+
     add_north_arrow(ax)
 
-    # Add La Plata partido outline
     add_la_plata_outline(ax)
 
-    # Set title
     ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
-    # Remove axes
     ax.set_axis_off()
 
     return fig, ax
@@ -159,34 +231,27 @@ def wfs_to_gdf(
 ```
 ```{python}
 
-response = requests.get(
-    "https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson"
-)
+response = requests.get(RENABAP_URL)
 renabap = gpd.read_file(StringIO(response.text))
 renabap_pba = renabap[renabap["provincia"] == "Buenos Aires"]
 renabap_pba = renabap_pba.to_crs(USE_CRS)
 
-peligro_path = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/la_plata_pelig_2023_datos_originales.geojson"
-peligro = gpd.read_file(peligro_path)
+peligro = gpd.read_file(PELIGRO_PATH)
 peligro = peligro.to_crs(USE_CRS)
 
 peligro_bounds = peligro.total_bounds
 peligro_bbox = box(*peligro_bounds)
 
-# Try to read from local file first, then fetch from WFS if needed
-partidos_file_path = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/pba_partidos.geojson"
-
-if os.path.exists(partidos_file_path):
-    partidos = gpd.read_file(partidos_file_path)
+if os.path.exists(PARTIDOS_PATH):
+    partidos = gpd.read_file(PARTIDOS_PATH)
 else:
     partidos = wfs_to_gdf(
-        wfs_url="https://geo.arba.gov.ar/geoserver/idera/wfs",
+        wfs_url=PARTIDOS_WFS_URL,
         layer_name="idera:Departamento",
         srs="EPSG:5347",
     )
 
-    # Save for future use
-    partidos.to_file(partidos_file_path, driver="GeoJSON")
+    partidos.to_file(PARTIDOS_PATH, driver="GeoJSON")
 
 partidos = partidos.to_crs(USE_CRS)
 la_plata = partidos[partidos["fna"] == "Partido de La Plata"]
@@ -208,17 +273,14 @@ renabap_pba_intersect = renabap_pba[
     renabap_pba.geometry.intersects(la_plata_bbox)
 ].copy()
 
-# Try to read from local file first, then fetch from API if needed
-cuencas_file_path = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/cuencas_buenos_aires.geojson"
 
-if os.path.exists(cuencas_file_path):
-    cuencas = gpd.read_file(cuencas_file_path)
+if os.path.exists(CUENCAS_PATH):
+    cuencas = gpd.read_file(CUENCAS_PATH)
 else:
-    cuencas_url = "https://services1.arcgis.com/atxllciEI8CHWvwW/ArcGIS/rest/services/Cuencas_BuenosAires_2023/FeatureServer/0/query"
     params = {"where": "1=1", "outFields": "*", "f": "geojson"}
 
-    cuencas_response = requests.get(cuencas_url, params=params)
-    with open(cuencas_file_path, "w", encoding="utf-8") as f:
+    cuencas_response = requests.get(CUENCAS_API_URL, params=params)
+    with open(CUENCAS_PATH, "w", encoding="utf-8") as f:
         f.write(cuencas_response.text)
 
     cuencas = gpd.read_file(StringIO(cuencas_response.text))
@@ -226,21 +288,13 @@ else:
 cuencas = cuencas.to_crs(USE_CRS)
 cuencas = cuencas.clip(la_plata)
 
-eje_mapping = {
-    "noreste": ["Area de Bañados", "Cuenca Arroyo Rodriguez-Don Carlos"],
-    "noroeste": ["Cuenca Arroyo Martín-Carnaval", "Cuenca Arroyo Pereyra"],
-    "central": ["Cuenca Arroyo del Gato"],
-    "sudoeste": ["Cuenca A° Maldonado", "Cuenca Río Samborombón"],
-    "sudeste": ["Cuenca Arroyo El Pescado"],
-}
-
-# Map watershed names to axes based on the eje_mapping
+# Map watershed names to axes based on the EJE_MAPPING
 cuencas["eje"] = (
     cuencas["Cuenca"]
     .map(
         {
             cuenca: eje
-            for eje, cuencas_list in eje_mapping.items()
+            for eje, cuencas_list in EJE_MAPPING.items()
             for cuenca in cuencas_list
         }
     )
@@ -278,9 +332,10 @@ El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecre
 
 
 ```{python}
+#| cache: true
 fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
 
-renabap_pba_intersect_3857 = renabap_pba_intersect.to_crs("EPSG:3857")
+renabap_pba_intersect_3857 = renabap_pba_intersect.to_crs(WEB_MERCATOR_CRS)
 
 renabap_pba_intersect_3857.plot(
     ax=ax1, facecolor="none", edgecolor="black", linewidth=0.5, legend=False, zorder=10
@@ -293,25 +348,24 @@ plt.show()
 ```{python}
 peligro_clipped = gpd.clip(peligro, la_plata)
 
-# Reproject to EPSG:3857 for web mapping
-peligro_clipped_3857 = peligro_clipped.to_crs("EPSG:3857")
+peligro_clipped_3857 = peligro_clipped.to_crs(WEB_MERCATOR_CRS)
 
 # Reorder the categories so they map correctly to plasma colormap
 peligro_clipped_3857["PELIGROSID_ordered"] = pd.Categorical(
     peligro_clipped_3857["PELIGROSID"],
-    categories=["baja", "media", "alta"],
+    categories=VISUALIZATION_CONFIG["peligrosidad_categories"],
     ordered=True,
 )
 
-# Create map with plasma colormap
+
 fig2, ax2 = create_consistent_map("Zonas de Peligro en La Plata", common_bounds)
 
-# Plot with plasma colormap
+
 peligro_clipped_3857.plot(
     ax=ax2,
     column="PELIGROSID_ordered",
     cmap="plasma",
-    alpha=0.75,
+    alpha=VISUALIZATION_CONFIG["alpha_default"],
     legend=True,
     zorder=5,
 )
@@ -328,7 +382,7 @@ La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https:
 
 # Load GHSL data with dask chunking for memory efficiency
 ghsl = rioxarray.open_rasterio(
-    "/home/nissim/Downloads/spatial/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13.tif",
+    GHSL_PATH,
     chunks={"x": 1024, "y": 1024},  # Adjust chunk size based on your memory constraints
 )
 
@@ -347,16 +401,16 @@ fig2, ax2 = create_consistent_map("Datos de población GHSL", common_bounds)
 
 ghsl_masked = ma.masked_where(ghsl_clipped.values[0] == 0, ghsl_clipped.values[0])
 
-ghsl_valid = (ghsl_clipped.values[0] != -200) & (ghsl_clipped.values[0] != 0)
+ghsl_valid = (ghsl_clipped.values[0] != NODATA_VALUE) & (ghsl_clipped.values[0] != 0)
 ghsl_valid_data = ghsl_clipped.values[0][ghsl_valid]
 
-plasma_cmap = plt.cm.plasma
+plasma_cmap = VISUALIZATION_CONFIG["plasma_cmap"]
 
-ghsl_clipped_3857 = ghsl_clipped.rio.reproject("EPSG:3857")
+ghsl_clipped_3857 = ghsl_clipped.rio.reproject(WEB_MERCATOR_CRS)
 
 # Mask out zeros AND nodata values
 ghsl_masked_3857 = ma.masked_where(
-    (ghsl_clipped_3857.values[0] == 0) | (ghsl_clipped_3857.values[0] == -200),
+    (ghsl_clipped_3857.values[0] == 0) | (ghsl_clipped_3857.values[0] == NODATA_VALUE),
     ghsl_clipped_3857.values[0],
 )
 
@@ -369,7 +423,7 @@ im = ax2.imshow(
         ghsl_clipped_3857.y.max(),
     ],
     cmap=plasma_cmap,
-    alpha=0.75,
+    alpha=VISUALIZATION_CONFIG["alpha_default"],
 )
 
 plt.tight_layout()
@@ -382,7 +436,6 @@ Los datos de [Google-Microsoft-OSM Open Buildings - combined by VIDA](https://so
 
 ```{python}
 
-#| cache: false
 #| #| output: false
 
 def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
@@ -490,7 +543,6 @@ if renabap_pba_intersect.crs != peligro.crs:
 
 hazard_levels = peligro["PELIGROSID"].unique()
 
-# 1. BARRIO AREAL EXPOSURE
 renabap_with_porciones = renabap_pba_intersect.copy()
 for level in hazard_levels:
     renabap_with_porciones[f"porcion_{level}"] = 0.0
@@ -555,9 +607,6 @@ settlement_counts = settlement_cuenca_mapping["id_renabap"].value_counts()
 multi_cuenca_settlements = settlement_counts[settlement_counts > 1].index
 
 if len(multi_cuenca_settlements) > 0:
-    print(
-        f"Warning: {len(multi_cuenca_settlements)} settlements appear in multiple cuencas"
-    )
     # For settlements in multiple cuencas, assign to the cuenca with largest intersection
     # For now, just take the first occurrence
     settlement_cuenca_mapping = settlement_cuenca_mapping.drop_duplicates(
@@ -971,7 +1020,7 @@ for eje in settle_hazard_cuencas["eje"].unique():
 ghsl_eje_tidy = pd.DataFrame(ghsl_eje_tidy)
 ```
 
-## Resultados y conclusiones
+## Resultados
 ```{python}
 
 # 1. BARRIO-LEVEL WIDE DATAFRAME
@@ -1094,9 +1143,18 @@ eje_wide = eje_wide.fillna(0)
 
 ### Comparación de métodos
 
-```{python}
 
-# Create genuinely tidy version of barrio_wide
+```{python}
+#| layout-ncol: 3
+#| label: fig-analisis-comparativo-barrios
+#| fig-cap: "Análisis comparativo de métodos de estimación por barrio"
+#| fig-subcap:
+#|   - "Discrepancia vs población total del barrio"
+#|   - "Discrepancia vs área del barrio" 
+#|   - "Rango de estimaciones para barrios con mayor exposición"
+#| lightbox:
+#|   group: analisis-comparativo-barrios
+
 barrio_tidy = pd.melt(
     barrio_wide,
     id_vars=["id_renabap", "nombre_barrio", "peligrosidad"],
@@ -1105,16 +1163,18 @@ barrio_tidy = pd.melt(
     value_name="fam_expuestas",
 )
 
-# Clean up method names
 barrio_tidy["metodo"] = barrio_tidy["metodo"].str.replace("fam_expuestas_", "")
 
-# Add geometry back
 barrio_tidy = barrio_tidy.merge(
     renabap_pba_intersect[["id_renabap", "geometry"]], on="id_renabap", how="left"
 )
 
-# Calculate area
 barrio_tidy["area"] = barrio_tidy.geometry.apply(lambda geom: geom.area)
+
+
+
+
+
 
 # Group by id_renabap and peligro, then find which method has the highest fam_expuestas
 highest_methods = barrio_tidy.groupby(["id_renabap", "peligrosidad"])[
@@ -1124,9 +1184,20 @@ highest_methods = barrio_tidy.groupby(["id_renabap", "peligrosidad"])[
 # Get the method names for the highest estimates
 method_counts = barrio_tidy.loc[highest_methods, "metodo"].value_counts()
 
-# Display results
-print("Method that most often returns highest fam_expuestas estimate:")
-print(method_counts)
+plt.figure(figsize=(12, 7))
+sns.barplot(x=method_counts.index, y=method_counts.values, palette='viridis')
+plt.title('Métodos que Más Frecuentemente Devuelven la Mayor Estimación de Familias Expuestas', 
+          fontsize=14, fontweight='bold', pad=20)
+plt.xlabel('Método', fontsize=12, fontweight='bold')
+plt.ylabel('Frecuencia', fontsize=12, fontweight='bold')
+plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
+
+
+
+
 
 # Group by id_renabap and peligro, then find which method has the lowest fam_expuestas
 lowest_methods = barrio_tidy.groupby(["id_renabap", "peligrosidad"])[
@@ -1136,9 +1207,21 @@ lowest_methods = barrio_tidy.groupby(["id_renabap", "peligrosidad"])[
 # Get the method names for the lowest estimates
 lowest_method_counts = barrio_tidy.loc[lowest_methods, "metodo"].value_counts()
 
-# Display results
-print("Method that most often returns lowest fam_expuestas estimate:")
-print(lowest_method_counts)
+# Crear gráfico de barras para métodos con menor estimación
+plt.figure(figsize=(12, 7))
+sns.barplot(x=lowest_method_counts.index, y=lowest_method_counts.values, palette='viridis')
+plt.title('Métodos que Más Frecuentemente Devuelven la Menor Estimación de Familias Expuestas', 
+          fontsize=14, fontweight='bold', pad=20)
+plt.xlabel('Método', fontsize=12, fontweight='bold')
+plt.ylabel('Frecuencia', fontsize=12, fontweight='bold')
+plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
+
+
+
+
 
 # First, left join familias_aproximadas from renabap_pba_intersect
 final_tidy_with_pop = barrio_tidy.merge(
@@ -1167,13 +1250,36 @@ range_by_barrio["abs_pct_diff"] = (
 # Calculate average absolute percent difference per peligro level
 avg_pct_diff_by_peligro = range_by_barrio.groupby("peligrosidad")["abs_pct_diff"].mean()
 
-print(
-    "Average absolute percent difference between highest and lowest estimates per peligro level:"
-)
-print(avg_pct_diff_by_peligro.round(2))
+# Calculate absolute percent difference by method
+method_errors = final_tidy_with_pop.copy()
 
-# Optional: Show the overall average across all peligro levels
-print(f"\nOverall average: {range_by_barrio['abs_pct_diff'].mean():.2f}%")
+
+# Calculate absolute error as percent of total population for each method
+method_errors["abs_error_pct"] = abs(
+    method_errors["fam_expuestas"] - method_errors.groupby(["id_renabap", "peligrosidad"])["fam_expuestas"].transform("mean")
+) / method_errors["familias_aproximadas"] * 100
+
+# Calculate coefficient of variation for each barrio-peligro combination
+barrio_reliability = final_tidy_with_pop.groupby(["id_renabap", "peligrosidad"]).agg({
+    "fam_expuestas": ["mean", "std"],
+    "familias_aproximadas": "first"
+}).reset_index()
+
+barrio_reliability.columns = ["id_renabap", "peligrosidad", "mean_estimate", "std_estimate", "familias_aproximadas"]
+barrio_reliability["coefficient_variation"] = barrio_reliability["std_estimate"] / barrio_reliability["mean_estimate"]
+
+# Create box plot
+plt.figure(figsize=(12, 3))
+sns.boxplot(data=barrio_reliability, y="peligrosidad", x="coefficient_variation", 
+           hue="peligrosidad", palette="viridis", legend=False, width=0.4)
+plt.title("Variabilidad de Estimaciones entre Métodos", fontsize=16, fontweight='bold', pad=20)
+plt.ylabel("Peligrosidad", fontsize=14, fontweight='bold')
+plt.xlabel("Coeficiente de Variación (0 = estimaciones idénticas, 1 = muy variables)", fontsize=12, fontweight='bold')
+plt.tight_layout()
+plt.show()
+
+
+
 
 
 
@@ -1491,10 +1597,16 @@ barrio_summary = barrio_summary.sort_values(
 ### Exposición por barrio
 
 ```{python}
-show(barrio_summary)
-```
+#| layout-ncol: 3
+#| label: fig-mapas-exposicion-barrios
+#| fig-cap: "Comparación de métodos de estimación de exposición por barrio"
+#| fig-subcap:
+#|   - "Estimación basada en edificios"
+#|   - "Estimación basada en GHSL"
+#|   - "Estimación basada en interpolación areal"
+#| lightbox:
+#|   group: metodos-exposicion-barrios
 
-```{python}
 methods = barrio_tidy["metodo"].unique()
 
 for method in methods:
@@ -1508,37 +1620,44 @@ for method in methods:
     )
 ```
 
-### Exposición por cuenca
 ```{python}
-show(cuenca_wide)
+show(barrio_summary)
 ```
 
+### Exposición por cuenca
 ```{python}
+#| layout-ncol: 3
+#| label: fig-mapas-exposicion-cuencas
+#| fig-cap: "Comparación de métodos de estimación de exposición por cuenca"
+#| fig-subcap:
+#|   - "Estimación basada en edificios"
+#|   - "Estimación basada en GHSL"
+#|   - "Estimación basada en interpolación areal"
+#| lightbox:
+#|   group: metodos-exposicion-cuencas
 
-# Create centroid geodataframe from cuencas
+
 cuencas_centroids = cuencas.copy()
 cuencas_centroids["geometry"] = cuencas_centroids["geometry"].centroid
 
 # Create a lowercase version of Cuenca for matching
 cuencas_centroids["cuenca_lower"] = cuencas_centroids["Cuenca"].str.lower()
 
-# Create cuenca_tidy by melting (assuming you have a cuenca_wide dataframe)
 cuenca_tidy = pd.melt(
     cuenca_wide,
-    id_vars=["cuenca", "peligrosidad"],  # adjust these based on your actual columns
+    id_vars=["cuenca", "peligrosidad"],  
     value_vars=[
         "fam_expuestas_edificios",
         "fam_expuestas_ghsl",
         "fam_expuestas_areal",
-    ],  # adjust these too
+    ], 
     var_name="metodo",
     value_name="fam_expuestas",
 )
 
-# Clean up method names
+
 cuenca_tidy["metodo"] = cuenca_tidy["metodo"].str.replace("fam_expuestas_", "")
 
-# Join cuenca_tidy with cuencas_centroids using the lowercase names
 cuenca_tidy_with_geometry = cuenca_tidy.merge(
     cuencas_centroids[["cuenca_lower", "geometry"]],
     left_on="cuenca",
@@ -1546,7 +1665,6 @@ cuenca_tidy_with_geometry = cuenca_tidy.merge(
     how="left",
 )
 
-# Convert to GeoDataFrame
 cuenca_tidy_gdf = gpd.GeoDataFrame(
     cuenca_tidy_with_geometry, geometry="geometry", crs=cuencas.crs
 )
@@ -1565,13 +1683,23 @@ for method in methods:
 
 ```
 
-### Exposición por eje
 ```{python}
-show(eje_wide)
+show(cuenca_wide)
 ```
 
+### Exposición por eje
+
 ```{python}
-   # Create eje_tidy by melting eje_wide
+#| layout-ncol: 3
+#| label: fig-mapas-exposicion
+#| fig-cap: "Comparación de métodos de estimación de exposición por eje de cuenca"
+#| fig-subcap:
+#|   - "Estimación basada en edificios"
+#|   - "Estimación basada en GHSL"
+#|   - "Estimación basada en interpolación areal"
+#| lightbox:
+#|   group: metodos-exposicion
+
 eje_tidy = pd.melt(
     eje_wide,
     id_vars=["eje", "peligrosidad"],
@@ -1580,7 +1708,7 @@ eje_tidy = pd.melt(
     value_name="fam_expuestas",
 )
 
-# Clean up method names
+
 eje_tidy["metodo"] = eje_tidy["metodo"].str.replace("fam_expuestas_", "")
 
 # Create eje geodataframe by dissolving cuencas by eje and then taking centroids
@@ -1588,12 +1716,10 @@ ejes = cuencas.dissolve(by="eje").reset_index()
 ejes_centroids = ejes.copy()
 ejes_centroids["geometry"] = ejes_centroids["geometry"].centroid
 
-# Join eje_tidy with ejes_centroids
 eje_tidy_with_geometry = eje_tidy.merge(
     ejes_centroids[["eje", "geometry"]], on="eje", how="left"
 )
 
-# Convert to GeoDataFrame
 eje_tidy_gdf = gpd.GeoDataFrame(
     eje_tidy_with_geometry, geometry="geometry", crs=cuencas.crs
 )
@@ -1611,3 +1737,9 @@ for method in methods:
     )
 
 ```
+
+```{python}
+show(eje_wide)
+```
+
+## Conclusiones
