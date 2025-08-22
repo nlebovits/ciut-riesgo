@@ -1,5 +1,10 @@
 /_*.local
-data/
+/data/
+
+# Ignore all data files in notebooks/data directory except specific CSV files
+notebooks/data/
+!notebooks/data/barrio_wide.csv
+!notebooks/data/cuenca_wide.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -235,5 +240,3 @@ ENV/
 
 /.quarto/
 
-# Ignore all data files in notebooks/data directory
-notebooks/data/

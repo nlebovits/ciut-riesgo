@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>https://nlebovits.github.io/ciut-riesgo/index.html</loc>
+    <lastmod>2025-08-19T14:47:38.874Z</lastmod>
+  </url>
+  <url>
+    <loc>https://nlebovits.github.io/ciut-riesgo/exposicion.html</loc>
+    <lastmod>2025-08-19T15:12:08.310Z</lastmod>
+  </url>
+  <url>
+    <loc>https://nlebovits.github.io/ciut-riesgo/suavizacion.html</loc>
+    <lastmod>2025-08-19T15:12:17.993Z</lastmod>
+  </url>
+  <url>
     <loc>https://nlebovits.github.io/ciut-riesgo/renabap.html</loc>
-    <lastmod>2025-08-22T22:04:07.891Z</lastmod>
+    <lastmod>2025-08-22T22:33:57.261Z</lastmod>
+  </url>
+  <url>
+    <loc>https://nlebovits.github.io/ciut-riesgo/references.html</loc>
+    <lastmod>2025-08-21T17:08:16.876Z</lastmod>
   </url>
 </urlset>

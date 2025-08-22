@@ -5,6 +5,8 @@ subtitle: "Análisis de la exposición poblacional a peligros de inundación en 
 
 ## Resumen ejecutivo
 
+*Los datos procesados, incluyendo las estimaciones de exposición por barrio popular para los tres métodos de estimación, desglosados por nivel de peligro, están disponibles para descarga en formato CSV. <a href="https://raw.githubusercontent.com/nlebovits/ciut-riesgo/main/notebooks/data/barrio_wide.csv" download="barrio_exposicion_data.csv">Haga clic aquí para descargar los datos por barrio</a>. Los datos agregados por cuenca también están disponibles, incluyendo una columna "eje" que permite resumir los datos al nivel de eje de cuenca. <a href="https://raw.githubusercontent.com/nlebovits/ciut-riesgo/main/notebooks/data/cuenca_wide.csv" download="cuenca_exposicion_data.csv">Haga clic aquí para descargar los datos por cuenca</a>.*
+
 ## Objetivos
 
 El objetivo principal de este análisis es calcular con mayor precisión la exposición poblacional en la región del Partido de La Plata, comparando el enfoque actual de interpolación por área de datos del RENABAP con enfoques de mapeo dasimétrico de mayor resolución utilizando datos de la Capa Global de Asentamientos Humanos (GHSL) y el conjunto de datos de edificios abiertos de Google-Microsoft OpenStreetMap.
@@ -17,6 +19,7 @@ Para lograr este objetivo, necesitamos:
 4. **Priorizar recursos**: Identificar áreas donde se requiera recopilación de datos más precisa
 
 ## Contexto
+
 ```{python}
 import matplotlib.pyplot as plt
 import contextily as ctx
@@ -291,8 +294,6 @@ def create_wide_exposure_dataframe(areal_data, ghsl_data, buildings_data,
     
     return wide_data
 
-```
-```{python}
 
 response = requests.get(RENABAP_URL)
 renabap = gpd.read_file(StringIO(response.text))
@@ -386,56 +387,9 @@ Hay un total de `{python} len(renabap_pba_intersect)` barrios populares en el Pa
 
 ## Fuentes de datos
 
-
-
 ### RENABAP
 
 El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
-
-
-
-```{python}
-#| cache: true
-fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
-
-renabap_pba_intersect_3857 = renabap_pba_intersect.to_crs(WEB_MERCATOR_CRS)
-
-renabap_pba_intersect_3857.plot(
-    ax=ax1, facecolor="none", edgecolor="black", linewidth=0.5, legend=False, zorder=10
-)
-
-plt.tight_layout()
-plt.show()
-```
-
-```{python}
-peligro_clipped = gpd.clip(peligro, la_plata)
-
-peligro_clipped_3857 = peligro_clipped.to_crs(WEB_MERCATOR_CRS)
-
-# Reorder the categories so they map correctly to plasma colormap
-peligro_clipped_3857["PELIGROSID_ordered"] = pd.Categorical(
-    peligro_clipped_3857["PELIGROSID"],
-    categories=["baja", "media", "alta"],
-    ordered=True,
-)
-
-
-fig2, ax2 = create_consistent_map("Zonas de Peligro en La Plata", common_bounds)
-
-
-peligro_clipped_3857.plot(
-    ax=ax2,
-    column="PELIGROSID_ordered",
-    cmap="plasma",
-    alpha=0.75,
-    legend=True,
-    zorder=5,
-)
-
-plt.tight_layout()
-plt.show()
-```
 
 ### GHSL
 
@@ -459,47 +413,13 @@ ghsl_clipped = ghsl.rio.clip(
 
 ```
 
-```{python}
-fig2, ax2 = create_consistent_map("Datos de población GHSL", common_bounds)
-
-ghsl_masked = ma.masked_where(ghsl_clipped.values[0] == 0, ghsl_clipped.values[0])
-
-ghsl_valid = (ghsl_clipped.values[0] != NODATA_VALUE) & (ghsl_clipped.values[0] != 0)
-ghsl_valid_data = ghsl_clipped.values[0][ghsl_valid]
-
-plasma_cmap = PLASMA_CMAP
-
-ghsl_clipped_3857 = ghsl_clipped.rio.reproject(WEB_MERCATOR_CRS)
-
-# Mask out zeros AND nodata values
-ghsl_masked_3857 = ma.masked_where(
-    (ghsl_clipped_3857.values[0] == 0) | (ghsl_clipped_3857.values[0] == NODATA_VALUE),
-    ghsl_clipped_3857.values[0],
-)
-
-im = ax2.imshow(
-    ghsl_masked_3857,
-    extent=[
-        ghsl_clipped_3857.x.min(),
-        ghsl_clipped_3857.x.max(),
-        ghsl_clipped_3857.y.min(),
-        ghsl_clipped_3857.y.max(),
-    ],
-    cmap=plasma_cmap,
-    alpha=0.75,
-)
-
-plt.tight_layout()
-plt.show()
-```
-
 ### Google-Microsoft-OSM Open Buildings
 
 Los datos de [Google-Microsoft-OSM Open Buildings - combined by VIDA](https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access) [@google_microsoft_osm_buildings] representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google's V3 Open Buildings, Microsoft's GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido [exitosamente aplicados a evaluaciones de riesgo de inundación por empresas globales de riesgo financiero como ICE](https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities), demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.
 
 ```{python}
 
-#| #| output: false
+#| output: false
 
 def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
     """Fetch building data for a given GeoDataFrame region"""
@@ -581,11 +501,93 @@ buildings_proj = buildings_proj.clip(la_plata)
 ```
 
 ```{python}
-fig3, ax3 = create_consistent_map("Huellas de edificios", common_bounds)
+#| cache: true
+#| layout-ncol: 2
+#| label: fig-fuentes-datos
+#| fig-cap: "Fuentes de datos para análisis de exposición"
+#| fig-subcap:
+#|   - "Asentamientos RENABAP en La Plata"
+#|   - "Zonas de Peligro en La Plata"
+#|   - "Datos de población GHSL"
+#|   - "Huellas de edificios"
+#| lightbox:
+#|   group: fuentes-datos
+
+fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", common_bounds)
+
+renabap_pba_intersect_3857 = renabap_pba_intersect.to_crs(WEB_MERCATOR_CRS)
+
+renabap_pba_intersect_3857.plot(
+    ax=ax1, facecolor="none", edgecolor="black", linewidth=0.5, legend=False, zorder=10
+)
+
+plt.tight_layout()
+plt.show()
+
+peligro_clipped = gpd.clip(peligro, la_plata)
+
+peligro_clipped_3857 = peligro_clipped.to_crs(WEB_MERCATOR_CRS)
+
+# Reorder the categories so they map correctly to plasma colormap
+peligro_clipped_3857["PELIGROSID_ordered"] = pd.Categorical(
+    peligro_clipped_3857["PELIGROSID"],
+    categories=["baja", "media", "alta"],
+    ordered=True,
+)
+
+
+fig2, ax2 = create_consistent_map("Zonas de Peligro en La Plata", common_bounds)
+
+
+peligro_clipped_3857.plot(
+    ax=ax2,
+    column="PELIGROSID_ordered",
+    cmap="plasma",
+    alpha=0.75,
+    legend=True,
+    zorder=5,
+)
+
+plt.tight_layout()
+plt.show()
+
+fig3, ax3 = create_consistent_map("Datos de población GHSL", common_bounds)
+
+ghsl_masked = ma.masked_where(ghsl_clipped.values[0] == 0, ghsl_clipped.values[0])
+
+ghsl_valid = (ghsl_clipped.values[0] != NODATA_VALUE) & (ghsl_clipped.values[0] != 0)
+ghsl_valid_data = ghsl_clipped.values[0][ghsl_valid]
+
+plasma_cmap = PLASMA_CMAP
+
+ghsl_clipped_3857 = ghsl_clipped.rio.reproject(WEB_MERCATOR_CRS)
+
+# Mask out zeros AND nodata values
+ghsl_masked_3857 = ma.masked_where(
+    (ghsl_clipped_3857.values[0] == 0) | (ghsl_clipped_3857.values[0] == NODATA_VALUE),
+    ghsl_clipped_3857.values[0],
+)
+
+im = ax3.imshow(
+    ghsl_masked_3857,
+    extent=[
+        ghsl_clipped_3857.x.min(),
+        ghsl_clipped_3857.x.max(),
+        ghsl_clipped_3857.y.min(),
+        ghsl_clipped_3857.y.max(),
+    ],
+    cmap=plasma_cmap,
+    alpha=0.75,
+)
+
+plt.tight_layout()
+plt.show()
+
+fig4, ax4 = create_consistent_map("Huellas de edificios", common_bounds)
 
 buildings_3857 = buildings_proj.to_crs(WEB_MERCATOR_CRS)
 
-buildings_3857.plot(ax=ax3, facecolor="grey", edgecolor="none", alpha=0.7)
+buildings_3857.plot(ax=ax4, facecolor="grey", edgecolor="none", alpha=0.7)
 
 plt.tight_layout()
 plt.show()
@@ -1119,6 +1121,7 @@ ghsl_eje_tidy = create_exposure_tidy_data(
 ```
 
 ## Resultados
+
 ```{python}
 
 # 1. BARRIO-LEVEL WIDE DATAFRAME using consolidated function
@@ -1233,7 +1236,6 @@ eje_wide = eje_wide[
 ```
 
 ### Comparación de métodos
-
 
 ```{python}
 #| layout-ncol: 3
@@ -1559,11 +1561,6 @@ barrio_summary = barrio_summary.sort_values(
 )
 ```
 
-
-
-
-
-
 ```{python}
 def plot_method_map(
     method_name,
@@ -1626,7 +1623,6 @@ def plot_method_map(
     plt.tight_layout()
     plt.show()
 ```
-
 
 ```{python}
 area_data = (
@@ -1704,6 +1700,7 @@ show(barrio_summary)
 ```
 
 ### Exposición por cuenca
+
 ```{python}
 #| layout-ncol: 3
 #| label: fig-mapas-exposicion-cuencas
