@@ -21,6 +21,7 @@ Para lograr este objetivo, necesitamos:
 ## Contexto
 
 ```{python}
+
 import matplotlib.pyplot as plt
 import contextily as ctx
 
@@ -397,6 +398,7 @@ La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https:
 
 ```{python}
 
+
 # Load GHSL data with dask chunking for memory efficiency
 ghsl = rioxarray.open_rasterio(
     GHSL_PATH,
@@ -418,6 +420,7 @@ ghsl_clipped = ghsl.rio.clip(
 Los datos de [Google-Microsoft-OSM Open Buildings - combined by VIDA](https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access) [@google_microsoft_osm_buildings] representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google's V3 Open Buildings, Microsoft's GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido [exitosamente aplicados a evaluaciones de riesgo de inundación por empresas globales de riesgo financiero como ICE](https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities), demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.
 
 ```{python}
+
 
 #| output: false
 
@@ -501,6 +504,7 @@ buildings_proj = buildings_proj.clip(la_plata)
 ```
 
 ```{python}
+
 #| cache: true
 #| layout-ncol: 2
 #| label: fig-fuentes-datos
@@ -600,6 +604,7 @@ plt.show()
 La [interpolación areal](https://pysal.org/tobler/notebooks/01_interpolation_methods_overview.html) es un método simple en el que las variables de los datos fuente se ponderan según la superposición entre polígonos fuente y objetivo, luego se reagregan para ajustarse a las geometrías de los polígonos objetivo. En nuestro análisis, esto significa distribuir proporcionalmente la población de cada barrio popular según el área de intersección con diferentes niveles de peligro de inundación. El analasis original de la exposición poblacional a peligros de inundación en la región del Partido de La Plata se realizó utilizando este método.
 
 ```{python}
+
 
 if renabap_pba_intersect.crs != peligro.crs:
     peligro = peligro.to_crs(renabap_pba_intersect.crs)
@@ -710,6 +715,7 @@ El [mapeo dasimétrico](https://support.esri.com/en-us/gis-dictionary/dasymetric
 #### Mapeo dasymetrico con datos de edificios
 
 ```{python}
+
 
 # Get ALL buildings per settlement (not just hazard-intersected ones)
 buildings_settlement = gpd.overlay(
@@ -927,6 +933,7 @@ buildings_eje_tidy = create_exposure_tidy_data(
 #### Mapeo dasymetrico con datos GHSL
 
 ```{python}
+
 # Step 1: Calculate the total GHSL population per barrio popular using zonal statistics
 
 # Convert to the format expected by rasterstats
@@ -1124,6 +1131,7 @@ ghsl_eje_tidy = create_exposure_tidy_data(
 
 ```{python}
 
+
 # 1. BARRIO-LEVEL WIDE DATAFRAME using consolidated function
 renabap_info = renabap_pba_intersect[["id_renabap", "nombre_barrio"]].drop_duplicates()
 
@@ -1238,6 +1246,7 @@ eje_wide = eje_wide[
 ### Comparación de métodos
 
 ```{python}
+
 #| layout-ncol: 3
 #| label: fig-analisis-comparativo-barrios
 #| fig-cap: "Análisis comparativo de métodos de estimación por barrio"
@@ -1562,6 +1571,7 @@ barrio_summary = barrio_summary.sort_values(
 ```
 
 ```{python}
+
 def plot_method_map(
     method_name,
     final_tidy,
@@ -1625,6 +1635,7 @@ def plot_method_map(
 ```
 
 ```{python}
+
 area_data = (
     barrio_tidy[barrio_tidy["metodo"] == "area"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
@@ -1672,6 +1683,7 @@ barrio_summary = barrio_summary.sort_values(
 ### Exposición por barrio
 
 ```{python}
+
 #| layout-ncol: 3
 #| label: fig-mapas-exposicion-barrios
 #| fig-cap: "Comparación de métodos de estimación de exposición por barrio"
@@ -1696,12 +1708,14 @@ for method in methods:
 ```
 
 ```{python}
+
 show(barrio_summary)
 ```
 
 ### Exposición por cuenca
 
 ```{python}
+
 #| layout-ncol: 3
 #| label: fig-mapas-exposicion-cuencas
 #| fig-cap: "Comparación de métodos de estimación de exposición por cuenca"
@@ -1756,12 +1770,14 @@ for method in methods:
 ```
 
 ```{python}
+
 show(cuenca_wide)
 ```
 
 ### Exposición por eje
 
 ```{python}
+
 #| layout-ncol: 3
 #| label: fig-mapas-exposicion
 #| fig-cap: "Comparación de métodos de estimación de exposición por eje de cuenca"
@@ -1811,6 +1827,7 @@ for method in methods:
 ```
 
 ```{python}
+
 show(eje_wide)
 ```
 
