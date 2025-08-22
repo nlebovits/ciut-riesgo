@@ -19,6 +19,24 @@ Los archivos `.qmd` se basan en análisis realizados en el subdirectorio `notebo
 
 La documentación técnica, incluyendo configuración y planificación, se encuentra en el directorio `project-docs/`.
 
+### Herramientas
+
+- `tools/qmd_ruff.py` - Formatea código Python en archivos Quarto usando Ruff
+  ```bash
+  uv run tools/qmd_ruff.py "" renabap.qmd
+  ```
+  *Nota: No admite `ruff check --fix` porque pierde contexto entre bloques de código.*
+
+- Formatea Markdown en archivos Quarto:
+  ```bash
+  uv run markdownlint-cli2 "**/*.qmd" --fix
+  ```
+
+- Renderiza documentos Quarto:
+  ```bash
+  uv run quarto render
+  ```
+
 ## Recursos para Aprender GIS en Python
 
 Para aprender más sobre el análisis geoespacial en Python, te recomendamos los siguientes recursos (en orden de complejidad):
