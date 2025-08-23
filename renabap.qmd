@@ -44,11 +44,45 @@ from rasterstats import zonal_stats
 import rasterstats
 from rasterio.features import rasterize
 import numpy.ma as ma
+import itables
 from itables import show
+import json
+import requests
 import matplotlib.cm as cm
+from IPython.display import HTML, display
 
 import seaborn as sns
 import rioxarray
+
+# =============================================================================
+# ITABLES SPANISH CONFIGURATION
+# =============================================================================
+
+# Configure Argentine Spanish for itables
+try:
+    spanish_url = "https://cdn.datatables.net/plug-ins/2.3.3/i18n/es-AR.json"
+    response = requests.get(spanish_url)
+    response.raise_for_status()
+    spanish_config = response.json()
+    itables.options.language = spanish_config
+except Exception:
+    pass  # Fall back to English if configuration fails
+
+# Configure smaller font size for all itables
+css = """
+.dt-container {
+  font-size: small;
+}
+"""
+display(HTML(f"<style>{css}</style>"))
+
+# Helper function to round numeric columns for display
+def round_numeric_columns(df, decimals=0):
+    """Round all numeric columns in a DataFrame to specified decimal places."""
+    df_display = df.copy()
+    numeric_columns = df_display.select_dtypes(include=[np.number]).columns
+    df_display[numeric_columns] = df_display[numeric_columns].round(decimals)
+    return df_display
 
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
@@ -79,9 +113,9 @@ CUENCAS_API_URL = "https://services1.arcgis.com/atxllciEI8CHWvwW/ArcGIS/rest/ser
 HAZARD_LEVELS = ["baja", "media", "alta"]
 METHOD_NAMES = ["edificios", "ghsl", "areal"]
 EXPOSURE_COLUMNS = [
-    "fam_expuestas_edificios",
-    "fam_expuestas_ghsl",
-    "fam_expuestas_areal",
+    "fam_exp_edificios",
+    "fam_exp_ghsl",
+    "fam_exp_areal",
 ]
 NON_HAZARD_VALUE = "none"
 NODATA_VALUE = -200
@@ -105,9 +139,9 @@ PELIGROSIDAD_COLORS = {
 }
 
 METHOD_COLORS = {
-    "areal": PLASMA_CMAP(0.8),
-    "ghsl": PLASMA_CMAP(0.5),
-    "edificios": PLASMA_CMAP(0.2),
+    "fam_exp_areal": PLASMA_CMAP(0.8),
+    "fam_exp_ghsl": PLASMA_CMAP(0.5),
+    "fam_exp_edificios": PLASMA_CMAP(0.2),
 }
 
 # Eje mapping for watershed analysis
@@ -307,6 +341,14 @@ def create_wide_exposure_dataframe(
 
     # Fill NaN values with 0
     wide_data = wide_data.fillna(0)
+    
+    # Rename columns to shorter format
+    column_mapping = {
+        "fam_expuestas_areal": "fam_exp_areal",
+        "fam_expuestas_ghsl": "fam_exp_ghsl", 
+        "fam_expuestas_edificios": "fam_exp_edificios"
+    }
+    wide_data = wide_data.rename(columns=column_mapping)
 
     return wide_data
 
@@ -399,7 +441,7 @@ settle_hazard_cuencas = gpd.overlay(
 )
 ```
 
-Hay un total de `{python} len(renabap_pba_intersect)` barrios populares en el Partido de La Plata, que representan `{python} renabap_pba_intersect['familias_aproximadas'].sum()` familias. Estos barrios ocupan `{python} renabap_total_area_ha` hectáreas del Partido de La Plata, o `{python} percentage_coverage` por ciento del partido.
+Hay un total de `{python} int(len(renabap_pba_intersect))` barrios populares en el Partido de La Plata, que representan `{python} int(renabap_pba_intersect['familias_aproximadas'].sum())` familias. Estos barrios ocupan `{python} int(renabap_total_area_ha)` hectáreas del Partido de La Plata, o `{python} f"{percentage_coverage:.1f}"` por ciento del partido.
 
 ## Fuentes de datos
 
@@ -426,6 +468,10 @@ ghsl_clipped = ghsl.rio.clip(
     from_disk=True,  # Process from disk to avoid loading entire dataset into memory
 )
 ```
+
+### Peligro de inundación
+
+Los datos de peligro de inundación utilizados en este análisis fueron desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que permitió simular la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. El modelo calcula las principales variables hidráulicas (altura del agua, velocidad y caudal) a lo largo del tiempo, y a partir de estos resultados se generaron los mapas de peligrosidad que combinan el efecto de la profundidad con la velocidad de la corriente, ofreciendo un indicador más completo que los mapas tradicionales de máximas profundidades.
 
 ### Google-Microsoft-OSM Open Buildings
 
@@ -715,15 +761,13 @@ eje_areal_tidy = (
 )
 ```
 
-### Cuenta de edificios
-
 ### Mapeo dasymetrico
 
 El [mapeo dasimétrico](https://support.esri.com/en-us/gis-dictionary/dasymetric-mapping) reorganiza datos cartográficos de una unidad de recolección en áreas más precisas, modificando los límites originales usando datos de apoyo relacionados. Por ejemplo, un atributo de población organizado por tracto censal se vuelve más significativo cuando se eliminan áreas donde es razonable inferir que la gente no vive (cuerpos de agua, terrenos vacíos). En nuestro caso, utilizamos datos GHSL y huellas de edificios como información auxiliar para mejorar la precisión de las estimaciones de distribución poblacional.
 
-#### Mapeo dasymetrico con datos de edificios
-
 ```{python}
+### BUILDINGS
+
 # Get ALL buildings per settlement (not just hazard-intersected ones)
 buildings_settlement = gpd.overlay(
     buildings_proj, renabap_pba_intersect, how="intersection"
@@ -935,12 +979,9 @@ buildings_eje_tidy = create_exposure_tidy_data(
     exposure_values=eje_exposure["fam_expuestas"],
     exclude_zero=False,
 )
-```
 
-#### Mapeo dasymetrico con datos GHSL
 
-```{python}
-# Step 1: Calculate the total GHSL population per barrio popular using zonal statistics
+### GHSL 
 
 # Convert to the format expected by rasterstats
 geometries = [geom for geom in renabap_pba_intersect.geometry]
@@ -1137,7 +1178,18 @@ ghsl_eje_tidy = create_exposure_tidy_data(
 
 ## Resultados
 
+### Comparación de métodos
 ```{python}
+# | layout-ncol: 3
+# | label: fig-analisis-comparativo-barrios
+# | fig-cap: "Análisis comparativo de métodos de estimación por barrio"
+# | fig-subcap:
+# |   - "Discrepancia vs población total del barrio"
+# |   - "Discrepancia vs área del barrio"
+# |   - "Rango de estimaciones para barrios con mayor exposición"
+# | lightbox:
+# |   group: analisis-comparativo-barrios
+
 # 1. BARRIO-LEVEL WIDE DATAFRAME using consolidated function
 renabap_info = renabap_pba_intersect[["id_renabap", "nombre_barrio"]].drop_duplicates()
 
@@ -1250,20 +1302,6 @@ eje_wide = eje_wide[
     ]
     + EXPOSURE_COLUMNS
 ]
-```
-
-### Comparación de métodos
-
-```{python}
-# | layout-ncol: 3
-# | label: fig-analisis-comparativo-barrios
-# | fig-cap: "Análisis comparativo de métodos de estimación por barrio"
-# | fig-subcap:
-# |   - "Discrepancia vs población total del barrio"
-# |   - "Discrepancia vs área del barrio"
-# |   - "Rango de estimaciones para barrios con mayor exposición"
-# | lightbox:
-# |   group: analisis-comparativo-barrios
 
 barrio_tidy = pd.melt(
     barrio_wide,
@@ -1293,7 +1331,7 @@ highest_methods = barrio_tidy.groupby(["id_renabap", "peligrosidad"])[
 method_counts = barrio_tidy.loc[highest_methods, "metodo"].value_counts()
 
 plt.figure(figsize=(12, 7))
-sns.barplot(x=method_counts.index, y=method_counts.values, palette="viridis")
+sns.barplot(x=method_counts.index, y=method_counts.values, hue=method_counts.index, palette="viridis", legend=False)
 plt.title(
     "Métodos que Más Frecuentemente Devuelven la Mayor Estimación de Familias Expuestas",
     fontsize=14,
@@ -1319,7 +1357,7 @@ lowest_method_counts = barrio_tidy.loc[lowest_methods, "metodo"].value_counts()
 # Crear gráfico de barras para métodos con menor estimación
 plt.figure(figsize=(12, 7))
 sns.barplot(
-    x=lowest_method_counts.index, y=lowest_method_counts.values, palette="viridis"
+    x=lowest_method_counts.index, y=lowest_method_counts.values, hue=lowest_method_counts.index, palette="viridis", legend=False
 )
 plt.title(
     "Métodos que Más Frecuentemente Devuelven la Menor Estimación de Familias Expuestas",
@@ -1514,11 +1552,6 @@ top_10_data = alta_aggregated[
 plt.figure(figsize=(14, 10))  # Increased height to accommodate longer barrio names
 
 
-# Use color constants defined at the top
-plasma_cmap = PLASMA_CMAP
-peligrosidad_colors = PELIGROSIDAD_COLORS.copy()
-method_colors = METHOD_COLORS.copy()
-
 for i, barrio in enumerate(top_10_barrios):
     barrio_data = top_10_data[top_10_data["nombre_barrio"] == barrio]
     if len(barrio_data) > 0:
@@ -1531,7 +1564,7 @@ for i, barrio in enumerate(top_10_barrios):
 
         # Plot individual points colored by method
         for _, row in barrio_data.iterrows():
-            color = method_colors[row["metodo"]]
+            color = METHOD_COLORS[row["metodo"]]
             plt.plot(row["fam_expuestas"], i, "o", color=color, markersize=6, alpha=0.8)
 
 plt.yticks(range(len(top_10_barrios)), top_10_barrios)
@@ -1551,7 +1584,7 @@ legend_elements = [
         markersize=8,
         label=method,
     )
-    for method, color in method_colors.items()
+    for method, color in METHOD_COLORS.items()
 ]
 plt.legend(handles=legend_elements, title="Método")
 
@@ -1559,29 +1592,29 @@ plt.tight_layout()
 plt.show()
 
 area_data = (
-    barrio_tidy[barrio_tidy["metodo"] == "area"]
+    barrio_tidy[barrio_tidy["metodo"] == "fam_exp_areal"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
-area_data = area_data.rename(columns={"fam_expuestas": "fam_expuestas_area"})
+area_data = area_data.rename(columns={"fam_expuestas": "fam_exp_areal"})
 
 ghsl_data = (
-    barrio_tidy[barrio_tidy["metodo"] == "ghsl"]
+    barrio_tidy[barrio_tidy["metodo"] == "fam_exp_ghsl"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
-ghsl_data = ghsl_data.rename(columns={"fam_expuestas": "fam_expuestas_ghsl"})
+ghsl_data = ghsl_data.rename(columns={"fam_expuestas": "fam_exp_ghsl"})
 
 edificios_data = (
-    barrio_tidy[barrio_tidy["metodo"] == "edificios"]
+    barrio_tidy[barrio_tidy["metodo"] == "fam_exp_edificios"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
 edificios_data = edificios_data.rename(
-    columns={"fam_expuestas": "fam_expuestas_edificios"}
+    columns={"fam_expuestas": "fam_exp_edificios"}
 )
 
 # Merge all methods together
@@ -1606,7 +1639,7 @@ def plot_method_map(
     method_name,
     final_tidy,
     la_plata,
-    peligrosidad_colors,
+    PELIGROSIDAD_COLORS,
     common_bounds,
     create_consistent_map,
 ):
@@ -1635,7 +1668,7 @@ def plot_method_map(
             jitter_y = np.random.uniform(-200, 200)
             x_pos = centroid.x + jitter_x
             y_pos = centroid.y + jitter_y
-            color = peligrosidad_colors[row["peligrosidad"]]
+            color = PELIGROSIDAD_COLORS[row["peligrosidad"]]
             size = max(10, row["fam_expuestas"] * 2 + 15)
             ax.scatter(
                 x_pos,
@@ -1657,38 +1690,37 @@ def plot_method_map(
             markersize=8,
             label=level.capitalize(),
         )
-        for level, color in peligrosidad_colors.items()
+        for level, color in PELIGROSIDAD_COLORS.items()
     ]
     ax.legend(handles=legend_elements, title="Nivel de Peligrosidad", loc="upper right")
     plt.tight_layout()
     plt.show()
-```
 
-```{python}
+
 area_data = (
-    barrio_tidy[barrio_tidy["metodo"] == "area"]
+    barrio_tidy[barrio_tidy["metodo"] == "fam_exp_areal"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
-area_data = area_data.rename(columns={"fam_expuestas": "fam_expuestas_area"})
+area_data = area_data.rename(columns={"fam_expuestas": "fam_exp_areal"})
 
 ghsl_data = (
-    barrio_tidy[barrio_tidy["metodo"] == "ghsl"]
+    barrio_tidy[barrio_tidy["metodo"] == "fam_exp_ghsl"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
-ghsl_data = ghsl_data.rename(columns={"fam_expuestas": "fam_expuestas_ghsl"})
+ghsl_data = ghsl_data.rename(columns={"fam_expuestas": "fam_exp_ghsl"})
 
 edificios_data = (
-    barrio_tidy[barrio_tidy["metodo"] == "edificios"]
+    barrio_tidy[barrio_tidy["metodo"] == "fam_exp_edificios"]
     .groupby(["nombre_barrio", "peligrosidad"])["fam_expuestas"]
     .sum()
     .reset_index()
 )
 edificios_data = edificios_data.rename(
-    columns={"fam_expuestas": "fam_expuestas_edificios"}
+    columns={"fam_expuestas": "fam_exp_edificios"}
 )
 
 # Merge all methods together
@@ -1728,14 +1760,14 @@ for method in methods:
         method,
         barrio_tidy,
         la_plata,
-        peligrosidad_colors,
+        PELIGROSIDAD_COLORS,
         common_bounds,
         create_consistent_map,
     )
 ```
 
 ```{python}
-show(barrio_summary)
+show(round_numeric_columns(barrio_summary))
 ```
 
 ### Exposición por cuenca
@@ -1789,14 +1821,14 @@ for method in methods:
         method,
         cuenca_tidy_gdf,
         la_plata,
-        peligrosidad_colors,
+        PELIGROSIDAD_COLORS,
         common_bounds,
         create_consistent_map,
     )
 ```
 
 ```{python}
-show(cuenca_wide)
+show(round_numeric_columns(cuenca_wide))
 ```
 
 ### Exposición por eje
@@ -1845,14 +1877,14 @@ for method in methods:
         method,
         eje_tidy_gdf,
         la_plata,
-        peligrosidad_colors,
+        PELIGROSIDAD_COLORS,
         common_bounds,
         create_consistent_map,
     )
 ```
 
 ```{python}
-show(eje_wide)
+show(round_numeric_columns(eje_wide))
 ```
 
 ## Conclusiones
