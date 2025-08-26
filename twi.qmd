@@ -322,16 +322,16 @@ m.add_tile_layer(
     attribution="Google",
 )
 
-# Intentar cargar archivos locales primero, luego GitHub como respaldo
+# Usar GitHub como fuente principal, archivos locales como respaldo
 try:
-    m.add_raster(str(ruta_twi), colormap=CMAP, layer_name="TWI")
-except:
     m.add_raster(ruta_twi_github, colormap=CMAP, layer_name="TWI")
+except:
+    m.add_raster(str(ruta_twi), colormap=CMAP, layer_name="TWI")
 
 try:
-    m.add_raster(str(ruta_peligro), colormap=CMAP, layer_name="Peligrosidad")
-except:
     m.add_raster(ruta_peligro_github, colormap=CMAP, layer_name="Peligrosidad")
+except:
+    m.add_raster(str(ruta_peligro), colormap=CMAP, layer_name="Peligrosidad")
 
 la_plata_geojson = la_plata.to_crs(CRS_WGS84).__geo_interface__
 m.add_geojson(
