@@ -1,0 +1,2 @@
+notebooks/data/twi.tif filter=lfs diff=lfs merge=lfs -text
+notebooks/data/peligro_raster_10m.tif filter=lfs diff=lfs merge=lfs -text
