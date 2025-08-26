@@ -1,0 +1,336 @@
+---
+title: "Índice de Humedad Topográfica (TWI)"
+subtitle: "Cálculo para el Partido de La Plata"
+---
+
+## Resumen
+
+Este documento desarrolla un índice de humedad topográfica para el Partido de La Plata empleando datos de elevación FABDEM de acceso libre y las bibliotecas pysheds y xDEM mediante metodologías consolidadas. Los resultados se contrastan con modelado hidrológico de la Facultad de Ingeniería, evidenciando que el TWI representa una alternativa viable para contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible, especialmente considerando que el proceso completo requiere únicamente unos minutos y no tiene costo asociado. Este enfoque, respaldado científicamente pero con limitaciones reconocidas, constituye una solución práctica para evaluaciones preliminares de riesgo de inundación a escala municipal cuando se carece de información más detallada.
+
+## Introducción
+
+### ¿Qué es el TWI?
+
+El TWI es un índice establecido que combina la pendiente del terreno con el área de drenaje aguas arriba para identificar zonas propensas a la acumulación de agua e inundaciones. Calcula valores distribuidos espacialmente donde números más altos indican mayor potencial de encharcamiento y valores más bajos sugieren condiciones más secas. Es una herramienta ampliamente reconocida en hidrología para modelar condiciones de humedad del paisaje [@atlas_twi_2025].
+
+### ¿Por qué usarlo?
+
+El TWI es un método establecido que ha sido utilizado por agencias como el Illinois State Water Survey para identificar áreas urbanas con riesgo de inundación, demostrando su validez científica y aplicación práctica. La principal ventaja del TWI es que proporciona información valiosa sobre riesgo de inundaciones a un costo extremadamente bajo comparado con estudios hidrológicos detallados. Es gratuito, rápido de calcular usando datos topográficos que suelen estar disponibles, y fácil de interpretar, lo que lo convierte en una excelente herramienta de planificación inicial [@ballerine_twi].
+
+### Limitaciones
+
+Es fundamental entender que el TWI es una medida derivada puramente del terreno y no considera factores como infraestructura urbana, sistemas de drenaje, vegetación, o patrones climáticos locales. Por tanto, es una herramienta muy general que solo proporciona una noción del riesgo relativo de inundación. No debe utilizarse para tomar decisiones a nivel de parcela específica, ni puede estimar la profundidad de agua de inundación, que es crucial para el manejo detallado de aguas pluviales. El índice se correlaciona principalmente con flujo superficial y no puede capturar interacciones complejas con aguas subterráneas.
+
+### Uso apropiado
+
+Las investigaciones han confirmado que existe correlación entre valores altos de TWI y reportes ciudadanos de inundaciones urbanas menores, validando su utilidad en contextos urbanizados [@kelleher2020]. El TWI es especialmente valioso para gobiernos municipales con recursos limitados como primera aproximación para identificar áreas de riesgo relativo de inundaciones, desarrollar planes de emergencia y priorizar estudios más detallados en zonas críticas. Proporciona un punto de partida sólido y científicamente respaldado para la gestión del riesgo de inundaciones sin requerir inversión significativa en estudios especializados.
+
+## Herramientas
+
+### PySHEDS
+
+"[Pysheds](https://mattbartos.com/pysheds/) es una biblioteca de Python de código abierto diseñada por [Matt Bartos](https://github.com/mdbartos) para ayudar con el procesamiento de modelos digitales de elevación (DEMs), particularmente para análisis hidrológico. Pysheds realiza muchas de las funciones hidrológicas básicas ofrecidas por software comercial como ArcGIS, incluyendo delineación de cuencas y cálculo de acumulación." Aquí, utilizamos PySheds para calcular la acumulación de flujo, que se incorpora en nuestro cálculo del TWI.
+
+### xDEM
+
+[xDEM](https://xdem.readthedocs.io/en/stable/) "fue creado por un grupo de investigadores con experiencia en análisis de datos de elevación para detección de cambios aplicado a glaciología. Hoy en día, su desarrollo es liderado conjuntamente por investigadores en análisis de datos de elevación (incluyendo financiamiento de NASA y SNSF) e ingenieros de CNES (Agencia Espacial Francesa)." Utilizamos xDEM para todo nuestro procesamiento y cálculos de modelos digitales de elevación más allá de la acumulación de flujo.
+
+### FABDEM 30m
+
+[Fathom](https://www.fathom.global/), líder de la industria en modelado global de inundaciones, creó FABDEM específicamente para el desarrollo de sus modelos. A diferencia de otros modelos que conservan la altura de construcciones y vegetación, este utiliza técnicas de inteligencia artificial para eliminar dichas interferencias y mostrar únicamente la topografía del suelo [@hawker2022]. Su desarrollo involucró datos de referencia de alta precisión provenientes de doce países con características climáticas y urbanas diversas, lo que garantiza su aplicabilidad en distintos contextos geográficos. Los datos están disponibles para descarga en [este enlace](https://data.bris.ac.uk/data/dataset/s5hqmjcdj8yo2ibzi9b4ew3sn).
+Para nuestros propósitos, FABDEM resulta especialmente valioso dado que las investigaciones han demostrado que la calidad del modelo de elevación constituye el factor más influyente en la precisión del modelado de riesgo de inundaciones. Al eliminar las distorsiones causadas por elementos como edificaciones y árboles, este modelo nos permite obtener cálculos de TWI más precisos y representativos de las condiciones reales del terreno, aspecto crucial para la planificación municipal del riesgo de inundaciones.
+
+## Análisis
+
+### Importar datos
+
+En esta sección importamos [los datos de elevación FABDEM](https://data.bris.ac.uk/data/dataset/s5hqmjcdj8yo2ibzi9b4ew3sn). Hemos descargado previamente los tiles necesarios para cubrir el área del Partido de La Plata y los importamos usando rioxarray para crear un modelo digital de elevación fusionado que servirá como base para nuestros cálculos hidrológicos.
+
+```{python}
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+from pathlib import Path
+import xarray as xr
+import rioxarray
+from rioxarray.merge import merge_arrays
+import xdem
+import tempfile
+import numpy as np
+from matplotlib import colors
+import leafmap.leafmap as leafmap
+from pysheds.grid import Grid
+
+CRS_ARGENTINA = "EPSG:5349"
+CRS_WGS84 = "EPSG:4326"
+
+RUTA_BASE = Path("/home/nissim/Documents/dev/fulbright/ciut-riesgo")
+RUTA_DATOS = RUTA_BASE / "notebooks/data"
+RUTA_PARTIDOS = RUTA_DATOS / "pba_partidos.geojson"
+
+CMAP = "BuPu"
+
+partidos = gpd.read_file(RUTA_PARTIDOS)
+partidos = partidos.to_crs(CRS_ARGENTINA)
+la_plata = partidos[partidos["fna"] == "Partido de La Plata"]
+
+# Quitar la isla de La Plata - mantener solo el polígono más grande
+geometria_principal = la_plata.geometry.iloc[0]
+if geometria_principal.geom_type == "MultiPolygon":
+    poligono_mayor = max(geometria_principal.geoms, key=lambda p: p.area)
+    la_plata = la_plata.copy()
+    la_plata.loc[la_plata.index[0], "geometry"] = poligono_mayor
+
+bbox_la_plata_4326 = la_plata.to_crs(CRS_WGS84).total_bounds
+
+rutas_tiles = [
+    RUTA_DATOS / "fabdem/S40W060-S30W050_FABDEM_V1-2/S35W058_FABDEM_V1-2.tif",
+    RUTA_DATOS / "fabdem/S40W060-S30W050_FABDEM_V1-2/S36W058_FABDEM_V1-2.tif",
+    RUTA_DATOS / "fabdem/S40W060-S30W050_FABDEM_V1-2/S35W059_FABDEM_V1-2.tif",
+    RUTA_DATOS / "fabdem/S40W060-S30W050_FABDEM_V1-2/S36W059_FABDEM_V1-2.tif",
+]
+
+tiles = [rioxarray.open_rasterio(path, chunks=True) for path in rutas_tiles]
+dem_fusionado = merge_arrays(tiles)
+
+dem_recortado = dem_fusionado.rio.clip_box(
+    minx=bbox_la_plata_4326[0],
+    miny=bbox_la_plata_4326[1],
+    maxx=bbox_la_plata_4326[2],
+    maxy=bbox_la_plata_4326[3],
+)
+
+dem_recortado.plot(cmap=CMAP)
+ax = plt.gca()
+la_plata_wgs84 = la_plata.to_crs(CRS_WGS84)
+la_plata_wgs84.plot(
+    ax=ax,
+    facecolor="none",
+    edgecolor="black",
+    linewidth=0.5,
+    linestyle="--",
+    zorder=5,
+)
+```
+
+### Calcular acumulación de flujo
+
+Calculamos la acumulación de flujo, que es esencial para el cálculo del índice de humedad topográfica, siguiendo [el tutorial de `pysheds`](https://mattbartos.com/pysheds/dem-conditioning.html). No calculamos esto usando `xarray` porque pysheds no es compatible con `xarray`, pero luego convertiremos estos datos a `xarray` para nuestro cálculo del TWI. El proceso incluye acondicionar el DEM eliminando pozos y depresiones, calcular direcciones de flujo, y finalmente determinar la acumulación de flujo.
+
+```{python}
+with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp_file:
+    ruta_temporal = tmp_file.name
+
+
+dem_recortado.rio.to_raster(ruta_temporal)
+grilla = Grid.from_raster(ruta_temporal)
+
+dem = grilla.read_raster(ruta_temporal)
+
+valor_nodata = dem_recortado.attrs.get("_FillValue", -9999.0)
+
+# Acondicionar DEM
+dem_pozos_rellenos = grilla.fill_pits(dem)
+dem_inundado = grilla.fill_depressions(dem_pozos_rellenos)
+dem_inflado = grilla.resolve_flats(dem_inundado)
+
+
+dem_inflado_xarray = xr.DataArray(
+    dem_inflado,
+    coords={"y": dem_recortado.y, "x": dem_recortado.x},
+    dims=["y", "x"],
+    attrs=dem_recortado.attrs,
+).rio.write_crs("EPSG:4326")
+
+
+mapa_direcciones = (64, 128, 1, 2, 4, 8, 16, 32)
+
+
+direcciones_flujo = grilla.flowdir(
+    dem_inflado, dirmap=mapa_direcciones, nodata_out=np.int32(0)
+)
+
+direcciones_flujo_xarray = xr.DataArray(
+    direcciones_flujo,
+    coords={"y": dem_recortado.y, "x": dem_recortado.x},
+    dims=["y", "x"],
+    attrs=dem_recortado.attrs,
+).rio.write_crs("EPSG:4326")
+
+
+acumulacion = grilla.accumulation(
+    direcciones_flujo, dirmap=mapa_direcciones, nodata_out=np.int32(0)
+)
+
+
+acumulacion_xarray = xr.DataArray(
+    acumulacion,
+    coords={"y": dem_recortado.y, "x": dem_recortado.x},
+    dims=["y", "x"],
+    attrs=dem_recortado.attrs,
+).rio.write_crs("EPSG:4326")
+
+fig, ax = plt.subplots(figsize=(8, 6))
+fig.patch.set_alpha(0)
+plt.grid("on", zorder=0)
+im = ax.imshow(
+    acumulacion,
+    extent=grilla.extent,
+    zorder=2,
+    cmap=CMAP,
+    norm=colors.LogNorm(1, acumulacion.max()),
+    interpolation="bilinear",
+)
+plt.colorbar(im, ax=ax, label="Celdas Aguas Arriba")
+
+la_plata_wgs84.plot(
+    ax=ax,
+    facecolor="none",
+    edgecolor="black",
+    linewidth=0.5,
+    linestyle="--",
+    zorder=5,
+)
+plt.title("Acumulación de Flujo", size=14)
+plt.xlabel("Longitud")
+plt.ylabel("Latitud")
+plt.tight_layout()
+```
+
+### Calcular pendiente
+
+Calculamos la pendiente, otra variable necesaria para el cálculo del índice de humedad topográfica, siguiendo [el tutorial de `xDEM`](https://xdem.readthedocs.io/en/latest/basic_examples/plot_terrain_attributes.html). La pendiente es un componente fundamental de la fórmula del TWI y debe calcularse con precisión en un sistema de coordenadas métricas para obtener resultados confiables.
+
+```{python}
+with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp_file:
+    ruta_temporal = tmp_file.name
+
+# Reproyectar con resolución y proyeccion explícita igual
+dem_reproyectado = dem_recortado.rio.reproject(
+    CRS_ARGENTINA,
+    resolution=30,
+)
+
+dem_reproyectado.rio.to_raster(ruta_temporal)
+dem = xdem.DEM(ruta_temporal)
+
+atributos = xdem.terrain.get_terrain_attribute(
+    dem.data,
+    resolution=dem.res,
+    attribute=[
+        "hillshade",
+        "slope",
+        "aspect",
+        "curvature",
+        "terrain_ruggedness_index",
+        "rugosity",
+    ],
+)
+
+datos_pendiente = atributos[1]
+
+coordenadas_y = np.arange(dem.bounds.bottom, dem.bounds.top, dem.res[1])
+coordenadas_x = np.arange(dem.bounds.left, dem.bounds.right, dem.res[0])
+
+pendiente_xarray = xr.DataArray(
+    datos_pendiente,
+    coords={"y": coordenadas_y, "x": coordenadas_x},
+    dims=["y", "x"],
+    attrs={"crs": dem.crs, "units": "degrees", "long_name": "slope"},
+)
+
+pendiente_xarray.plot(cmap=CMAP)
+ax = plt.gca()
+la_plata.plot(
+    ax=ax,
+    facecolor="none",
+    edgecolor="black",
+    linewidth=0.5,
+    linestyle="--",
+    zorder=5,
+)
+```
+
+### Calcular TWI
+
+Combinamos la acumulación de flujo y la pendiente para calcular el índice de humedad topográfica usando la fórmula estándar TWI = ln(α / tan(β)), donde α es la acumulación de flujo y β es la pendiente. Ajustamos los valores extremos que surgen de dividir por pendiente cero para evitar valores infinitos en áreas completamente planas.
+
+```{python}
+acumulacion_xarray_reproyectada = acumulacion_xarray.rio.reproject(CRS_ARGENTINA)
+
+# Remuestrear pendiente para coincidir con acumulación
+pendiente_remuestreada = pendiente_xarray.rio.reproject(
+    acumulacion_xarray_reproyectada.rio.crs,
+    shape=acumulacion_xarray_reproyectada.shape,
+    transform=acumulacion_xarray_reproyectada.rio.transform(),
+)
+
+pendiente_rad = np.radians(pendiente_remuestreada)
+datos_twi = np.log(acumulacion_xarray_reproyectada / np.tan(pendiente_rad))
+
+# Reemplazar valores infinitos y valores muy altos
+datos_twi = np.where(np.isinf(datos_twi), 25, datos_twi)
+datos_twi = np.where(datos_twi > 25, 25, datos_twi)
+
+twi_xarray = xr.DataArray(
+    datos_twi,
+    coords=acumulacion_xarray_reproyectada.coords,
+    dims=acumulacion_xarray_reproyectada.dims,
+    attrs={
+        "crs": acumulacion_xarray_reproyectada.rio.crs,
+        "units": "dimensionless",
+        "long_name": "Topographic Wetness Index",
+        "description": "ln(flow_accumulation / tan(slope + 0.0001))",
+    },
+)
+
+plt.figure()
+twi_xarray.plot(cmap=CMAP)
+ax = plt.gca()
+la_plata.plot(
+    ax=ax,
+    facecolor="none",
+    edgecolor="black",
+    linewidth=0.5,
+    linestyle="--",
+    zorder=5,
+)
+```
+
+## Comparativa de modelación FLO-2D y TWI
+
+Disponemos de datos oficiales de peligro de inundación desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que simuló la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. La comparación visual entre nuestros resultados del TWI y estos mapas oficiales de peligrosidad permite evaluar qué tan bien corresponde este índice topográfico simple con el modelado hidráulico más completo.
+
+```{python}
+ruta_twi = RUTA_DATOS / "twi.tif"
+twi_xarray.rio.to_raster(ruta_twi)
+
+ruta_peligro = RUTA_DATOS / "peligro_raster_10m.tif"
+
+la_plata_centroid = la_plata.to_crs(CRS_WGS84).centroid.iloc[0]
+center_lat = la_plata_centroid.y
+center_lon = la_plata_centroid.x
+
+m = leafmap.Map(center=[center_lat, center_lon], zoom=9)
+m.add_tile_layer(
+    url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    name="Google Satellite",
+    attribution="Google",
+)
+m.add_raster(str(ruta_twi), colormap=CMAP, layer_name="TWI")
+m.add_raster(str(ruta_peligro), colormap=CMAP, layer_name="Peligrosidad")
+
+la_plata_geojson = la_plata.to_crs(CRS_WGS84).__geo_interface__
+m.add_geojson(
+    la_plata_geojson,
+    layer_name="Partido de La Plata",
+    style={"color": "black", "weight": 2, "fillOpacity": 0},
+)
+
+m.add_layer_control()
+m
+```
+
+## Conclusión
+
+Encontramos que estos datos del TWI son relativamente comparables con los datos de salida del modelo FLO-2D en nuestra comparativa y por lo tanto nos dan un buen grado de confianza para usarlos en evaluar el riesgo relativo a esta escala particular. Consideramos que son útiles como herramienta para evaluar peligros de inundación a nivel urbano. Esto es consistente con estudios internacionales que se han realizado en otras ciudades alrededor del mundo y nos da una sensación de confianza para usar estos datos en evaluaciones preliminares de peligro de inundación en lugares que no tienen mejores fuentes de datos disponibles.

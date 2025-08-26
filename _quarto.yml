@@ -17,6 +17,7 @@ book:
     - exposicion.qmd
     - suavizacion.qmd
     - renabap.qmd
+    - twi.qmd
     - references.qmd
 
 bibliography: references.bib
