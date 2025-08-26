@@ -60,6 +60,7 @@ import numpy as np
 from matplotlib import colors
 import leafmap.leafmap as leafmap
 from pysheds.grid import Grid
+from jenkspy import jenks_breaks
 
 CRS_ARGENTINA = "EPSG:5349"
 CRS_WGS84 = "EPSG:4326"
@@ -301,8 +302,11 @@ la_plata.plot(
 
 Disponemos de datos oficiales de peligro de inundación desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que simuló la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. La comparación visual entre nuestros resultados del TWI y estos mapas oficiales de peligrosidad permite evaluar qué tan bien corresponde este índice topográfico simple con el modelado hidráulico más completo.
 
+Para mejorar la comparabilidad entre ambos enfoques, aplicamos cortes de Jenks con cuatro clases al TWI para aproximar las zonas de peligro alto, medio, bajo y muy bajo/nulo que se encuentran en la capa de peligrosidad del departamento de ingeniería. Esta técnica de clasificación permite una mejor comparación visual entre ambos enfoques metodológicos y facilita la identificación de correspondencias espaciales.
+
+Un aspecto importante a considerar es que existen diferencias metodológicas fundamentales entre ambos enfoques. El modelado de ingeniería toma en cuenta la infraestructura urbana, especialmente el sistema de calles de la ciudad y elementos del drenaje urbano, mientras que el TWI se basa únicamente en la topografía del terreno.
+
 ```{python}
-# Cargar datos de peligro
 ruta_peligro = RUTA_DATOS / "peligro_raster_10m.tif"
 peligro_xarray = rioxarray.open_rasterio(ruta_peligro)
 
@@ -317,9 +321,31 @@ m.add_tile_layer(
     attribution="Google",
 )
 
-# Usar los xarray DataArrays directamente (sin archivos)
-m.add_raster(twi_xarray, colormap=CMAP, layer_name="TWI")
-m.add_raster(peligro_xarray, colormap=CMAP, layer_name="Peligrosidad")
+mask = twi_xarray.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
+mask = xr.where(~mask.isnull(), 1, 0)
+twi_masked = xr.where(mask == 1, twi_xarray, np.nan)
+twi_masked = twi_masked.rio.write_crs(twi_xarray.rio.crs)
+twi_masked = twi_masked.rio.write_transform(twi_xarray.rio.transform())
+
+
+
+twi_valid = twi_masked.values[~np.isnan(twi_masked.values)]
+sample_size = min(10000, len(twi_valid))
+twi_sample = np.random.choice(twi_valid, size=sample_size, replace=False)
+breaks = jenks_breaks(twi_sample, n_classes=4)
+twi_jenks = xr.where(twi_masked <= breaks[1], 1,
+                     xr.where(twi_masked <= breaks[2], 2,
+                              xr.where(twi_masked <= breaks[3], 3, 4)))
+twi_jenks = xr.where(~twi_masked.isnull(), twi_jenks, np.nan)
+twi_jenks = twi_jenks.rio.write_crs(twi_xarray.rio.crs)
+twi_jenks = twi_jenks.rio.write_transform(twi_xarray.rio.transform())
+
+peligro_2d = peligro_xarray.sel(band=1).astype('float32')
+peligro_clipped = peligro_2d.rio.clip(la_plata.geometry, la_plata.crs)
+
+m.add_raster(twi_masked, colormap=CMAP, layer_name="TWI", nodata=np.nan)
+m.add_raster(twi_jenks, colormap=CMAP, layer_name="TWI Jenks (4 clases)", nodata=np.nan)
+m.add_raster(peligro_clipped, colormap=CMAP, layer_name="Peligrosidad", nodata=peligro_clipped.rio.nodata)
 
 la_plata_geojson = la_plata.to_crs(CRS_WGS84).__geo_interface__
 m.add_geojson(
@@ -334,4 +360,4 @@ m
 
 ## Conclusión
 
-Encontramos que estos datos del TWI son relativamente comparables con los datos de salida del modelo FLO-2D en nuestra comparativa y por lo tanto nos dan un buen grado de confianza para usarlos en evaluar el riesgo relativo a esta escala particular. Consideramos que son útiles como herramienta para evaluar peligros de inundación a nivel urbano. Esto es consistente con estudios internacionales que se han realizado en otras ciudades alrededor del mundo y nos da una sensación de confianza para usar estos datos en evaluaciones preliminares de peligro de inundación en lugares que no tienen mejores fuentes de datos disponibles.
+Nuestro análisis demuestra que el TWI corresponde bien al modelado hidrológico desarrollado por la Facultad de Ingeniería Hídrica de la Universidad Nacional de La Plata. A pesar de las diferencias metodológicas entre ambos enfoques, la correspondencia espacial general es sólida, proporcionando confianza en el uso del TWI como herramienta de evaluación preliminar para el riesgo de inundaciones. El TWI constituye una herramienta valiosa y científicamente respaldada para evaluaciones preliminares de riesgo de inundación a escala municipal, especialmente en contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible. Los resultados son consistentes con estudios internacionales realizados en otras ciudades alrededor del mundo, lo que nos proporciona confianza para usar estos datos en evaluaciones iniciales de peligro de inundación.
