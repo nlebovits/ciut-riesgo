@@ -1,3 +1,11 @@
+---
+title: "Exposición"
+format:
+  html:
+    embed-resources: true
+    standalone: true
+---
+
 # Exposición
 
 ## Introducción a la Exposición

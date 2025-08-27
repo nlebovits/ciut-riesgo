@@ -14,7 +14,7 @@
     "href": "exposicion.html",
     "title": "1  Exposición",
     "section": "",
-    "text": "1.1 Introducción a la Exposición\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+    "text": "2 Exposición",
     "crumbs": [
       "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]
@@ -23,8 +23,8 @@
     "objectID": "exposicion.html#análisis-de-exposición",
     "href": "exposicion.html#análisis-de-exposición",
     "title": "1  Exposición",
-    "section": "1.2 Análisis de Exposición",
-    "text": "1.2 Análisis de Exposición\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    "section": "2.2 Análisis de Exposición",
+    "text": "2.2 Análisis de Exposición\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
     "crumbs": [
       "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]
@@ -33,8 +33,8 @@
     "objectID": "exposicion.html#evaluación-de-riesgos",
     "href": "exposicion.html#evaluación-de-riesgos",
     "title": "1  Exposición",
-    "section": "1.3 Evaluación de Riesgos",
-    "text": "1.3 Evaluación de Riesgos\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n\n\nMostrar código\nimport geopandas as gpd\nimport matplotlib.pyplot as plt\n\nfrom pathlib import Path\nimport xarray as xr\nimport rioxarray\nfrom rioxarray.merge import merge_arrays\nimport xdem\nimport tempfile\nimport numpy as np\nfrom matplotlib import colors\nimport leafmap.leafmap as leafmap\nfrom pysheds.grid import Grid\nfrom jenkspy import jenks_breaks\n\nCRS_ARGENTINA = \"EPSG:5349\"\nCRS_WGS84 = \"EPSG:4326\"\n\nRUTA_BASE = Path(\"/home/nissim/Documents/dev/fulbright/ciut-riesgo\")\nRUTA_DATOS = RUTA_BASE / \"notebooks/data\"\nRUTA_PARTIDOS = RUTA_DATOS / \"pba_partidos.geojson\"\n\nCMAP = \"BuPu\"\n\nruta_peligro = \"/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/peligro_raster_10m.tif\"\npeligro_xarray = rioxarray.open_rasterio(ruta_peligro)\n\nm = leafmap.Map()\nm.add_raster(peligro_xarray, colormap=CMAP, layer_name=\"Peligrosidad\", nodata=peligro_xarray.rio.nodata)\n\nm.add_layer_control()\nm",
+    "section": "2.3 Evaluación de Riesgos",
+    "text": "2.3 Evaluación de Riesgos\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n\n\nMostrar código\nimport geopandas as gpd\nimport matplotlib.pyplot as plt\n\nfrom pathlib import Path\nimport xarray as xr\nimport rioxarray\nfrom rioxarray.merge import merge_arrays\nimport xdem\nimport tempfile\nimport numpy as np\nfrom matplotlib import colors\nimport leafmap.leafmap as leafmap\nfrom pysheds.grid import Grid\nfrom jenkspy import jenks_breaks\n\nCRS_ARGENTINA = \"EPSG:5349\"\nCRS_WGS84 = \"EPSG:4326\"\n\nRUTA_BASE = Path(\"/home/nissim/Documents/dev/fulbright/ciut-riesgo\")\nRUTA_DATOS = RUTA_BASE / \"notebooks/data\"\nRUTA_PARTIDOS = RUTA_DATOS / \"pba_partidos.geojson\"\n\nCMAP = \"BuPu\"\n\nruta_peligro = \"/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/peligro_raster_10m.tif\"\npeligro_xarray = rioxarray.open_rasterio(ruta_peligro)\n\nm = leafmap.Map()\nm.add_raster(peligro_xarray, colormap=CMAP, layer_name=\"Peligrosidad\", nodata=peligro_xarray.rio.nodata)\n\nm.add_layer_control()\nm",
     "crumbs": [
       "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]
@@ -207,6 +207,16 @@
     "text": "Atlas. 2025. “Topographic Wetness Index—GIS Use Cases.” https://atlas.co/gis-use-cases/topographic-wetness-index/.\n\n\nBallerine, C. 2017. “Topographic Wetness Index Urban Flooding\nAwareness Act Action Support.” Technical report; University of\nIllinois at Urbana-Champaign, Prairie Research Institute.\n\n\nHawker, L., P. Uhe, L. Paulo, J. Sosa, J. Savage, C. Sampson, and J.\nNeal. 2022. “A 30 m Global Map of Elevation with Forests and\nBuildings Removed.” Environmental Research Letters 17\n(2): 024016. https://doi.org/10.1088/1748-9326/ac4d4f.\n\n\nKelleher, C., and L. McPhillips. 2020. “Exploring the Application\nof Topographic Indices in Urban Areas as Indicators of Pluvial Flooding\nLocations.” Hydrological Processes 34 (3): 780–94. https://doi.org/10.1002/hyp.13628.\n\n\nRomanazzi, Pablo et al. 2019. Plan de Reducción Del Riesgo Por\nInundaciones En La Región de La Plata. Edited by Sebastián\nGuerrini, Pablo Morosi, Eduardo Pablo Spinelli, and Josefina López\nMacKenzie. 1st ed. La Plata: Universidad Nacional de La Plata. Facultad\nde Ingeniería; Municipalidad de La Plata. https://sedici.unlp.edu.ar/bitstream/handle/10915/165109/Documento_completo.pdf-PDFA.pdf?sequence=1&isAllowed=y.\n\n\nSchiavina, M., S. Freire, A. Carioli, and K. MacManus. 2023.\n“GHS-POP R2023A - GHS Population Grid Multitemporal\n(1975-2030).” European Commission, Joint Research Centre (JRC).\nhttps://doi.org/10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE.\n\n\nSmith, A., P. D. Bates, O. Wing, et al. 2019. “New Estimates of\nFlood Exposure in Developing Countries Using High-Resolution Population\nData.” Nature Communications 10: 1814. https://doi.org/10.1038/s41467-019-09282-y.\n\n\nTellman, B., J. A. Sullivan, C. Kuhn, et al. 2021. “Satellite\nImaging Reveals Increased Proportion of Population Exposed to\nFloods.” Nature 596: 80–86. https://doi.org/10.1038/s41586-021-03695-w.\n\n\nVIDA. 2023. “Google-Microsoft-OSM Open Buildings - Combined by\nVIDA.” https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access.",
     "crumbs": [
       "References"
+    ]
+  },
+  {
+    "objectID": "exposicion.html#introducción-a-la-exposición",
+    "href": "exposicion.html#introducción-a-la-exposición",
+    "title": "1  Exposición",
+    "section": "2.1 Introducción a la Exposición",
+    "text": "2.1 Introducción a la Exposición\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]
   }
 ]
