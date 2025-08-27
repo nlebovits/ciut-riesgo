@@ -33,4 +33,4 @@ format:
     number-sections: true
     fontsize: "11"
     lightbox: auto
-
+    embed-resources: true

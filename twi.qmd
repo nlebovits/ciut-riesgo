@@ -1,10 +1,6 @@
 ---
-title: "Índice de Humedad Topográfica (TWI)"
+title: "Índice de Humedad Topográfica"
 subtitle: "Cálculo para el Partido de La Plata"
-format:
-  html:
-    embed-resources: true
-    standalone: true
 ---
 
 ## Resumen
@@ -302,6 +298,47 @@ la_plata.plot(
 )
 ```
 
+####
+
+Will add soon:
+https://doi.org/10.1080/10106049.2024.2387073
+https://doi.org/10.1016/j.envsoft.2022.105565
+https://link.springer.com/article/10.1007/s12145-023-01218-x
+https://repository.library.noaa.gov/view/noaa/51302
+
+[Hay que convertir los datos HAND a xarray y agregar al mapa interactivo.]
+
+```{python}
+hand = grilla.compute_hand(
+    direcciones_flujo, dem_inflado, acumulacion > 200, nodata_value=np.int32(0)
+)
+
+hand_xarray = xr.DataArray(
+    hand,
+    coords={"y": dem_recortado.y, "x": dem_recortado.x},
+    dims=["y", "x"],
+    attrs={
+        "crs": "EPSG:4326",
+        "units": "meters",
+        "long_name": "Height Above Nearest Drainage",
+        "description": "HAND - Altura Sobre Drenaje Más Cercano"
+    },
+).rio.write_crs("EPSG:4326")
+
+hand_xarray.plot(cmap=CMAP, figsize=(8, 6))
+ax = plt.gca()
+la_plata_wgs84.plot(
+    ax=ax,
+    facecolor="none",
+    edgecolor="black",
+    linewidth=0.5,
+    linestyle="--",
+    zorder=5,
+)
+plt.title("Altura Sobre Drenaje Más Cercano (HAND)", size=14)
+plt.tight_layout()
+```
+
 ## Comparativa de modelación FLO-2D y TWI
 
 Disponemos de datos oficiales de peligro de inundación desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que simuló la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. La comparación visual entre nuestros resultados del TWI y estos mapas oficiales de peligrosidad permite evaluar qué tan bien corresponde este índice topográfico simple con el modelado hidráulico más completo.
@@ -318,20 +355,19 @@ la_plata_centroid = la_plata.to_crs(CRS_WGS84).centroid.iloc[0]
 center_lat = la_plata_centroid.y
 center_lon = la_plata_centroid.x
 
-m = leafmap.Map(center=[center_lat, center_lon], zoom=9)
-m.add_tile_layer(
-    url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    name="Google Satellite",
-    attribution="Google",
-)
+hand_xarray_reproyectada = hand_xarray.rio.reproject(CRS_ARGENTINA)
+hand_log = np.log(hand_xarray_reproyectada + 1)
+hand_mask = hand_log.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
+hand_mask = xr.where(~hand_mask.isnull(), 1, 0)
+hand_masked = xr.where(hand_mask == 1, hand_log, np.nan)
+hand_masked = hand_masked.rio.write_crs(hand_log.rio.crs)
+hand_masked = hand_masked.rio.write_transform(hand_log.rio.transform())
 
-mask = twi_xarray.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
-mask = xr.where(~mask.isnull(), 1, 0)
-twi_masked = xr.where(mask == 1, twi_xarray, np.nan)
+twi_mask = twi_xarray.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
+twi_mask = xr.where(~twi_mask.isnull(), 1, 0)
+twi_masked = xr.where(twi_mask == 1, twi_xarray, np.nan)
 twi_masked = twi_masked.rio.write_crs(twi_xarray.rio.crs)
 twi_masked = twi_masked.rio.write_transform(twi_xarray.rio.transform())
-
-
 
 twi_valid = twi_masked.values[~np.isnan(twi_masked.values)]
 sample_size = min(10000, len(twi_valid))
@@ -347,8 +383,16 @@ twi_jenks = twi_jenks.rio.write_transform(twi_xarray.rio.transform())
 peligro_2d = peligro_xarray.sel(band=1).astype('float32')
 peligro_clipped = peligro_2d.rio.clip(la_plata.geometry, la_plata.crs)
 
+m = leafmap.Map(center=[center_lat, center_lon], zoom=9)
+m.add_tile_layer(
+    url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    name="Google Satellite",
+    attribution="Google",
+)
+
 m.add_raster(twi_masked, colormap=CMAP, layer_name="TWI", nodata=np.nan)
 m.add_raster(twi_jenks, colormap=CMAP, layer_name="TWI Jenks (4 clases)", nodata=np.nan)
+m.add_raster(hand_masked, colormap=CMAP + "_r", layer_name="HAND", nodata=np.nan)
 m.add_raster(peligro_clipped, colormap=CMAP, layer_name="Peligrosidad", nodata=peligro_clipped.rio.nodata)
 
 la_plata_geojson = la_plata.to_crs(CRS_WGS84).__geo_interface__
