@@ -34,7 +34,7 @@
     "href": "exposicion.html#evaluación-de-riesgos",
     "title": "1  Exposición",
     "section": "1.3 Evaluación de Riesgos",
-    "text": "1.3 Evaluación de Riesgos\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
+    "text": "1.3 Evaluación de Riesgos\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n\n\nMostrar código\nimport geopandas as gpd\nimport matplotlib.pyplot as plt\n\nfrom pathlib import Path\nimport xarray as xr\nimport rioxarray\nfrom rioxarray.merge import merge_arrays\nimport xdem\nimport tempfile\nimport numpy as np\nfrom matplotlib import colors\nimport leafmap.leafmap as leafmap\nfrom pysheds.grid import Grid\nfrom jenkspy import jenks_breaks\n\nCRS_ARGENTINA = \"EPSG:5349\"\nCRS_WGS84 = \"EPSG:4326\"\n\nRUTA_BASE = Path(\"/home/nissim/Documents/dev/fulbright/ciut-riesgo\")\nRUTA_DATOS = RUTA_BASE / \"notebooks/data\"\nRUTA_PARTIDOS = RUTA_DATOS / \"pba_partidos.geojson\"\n\nCMAP = \"BuPu\"\n\nruta_peligro = \"/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/peligro_raster_10m.tif\"\npeligro_xarray = rioxarray.open_rasterio(ruta_peligro)\n\nm = leafmap.Map()\nm.add_raster(peligro_xarray, colormap=CMAP, layer_name=\"Peligrosidad\", nodata=peligro_xarray.rio.nodata)\n\nm.add_layer_control()\nm",
     "crumbs": [
       "<span class='chapter-number'>1</span>  <span class='chapter-title'>Exposición</span>"
     ]

@@ -11,3 +11,38 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
 ## Evaluación de Riesgos
 
 Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+
+```{python}
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+from pathlib import Path
+import xarray as xr
+import rioxarray
+from rioxarray.merge import merge_arrays
+import xdem
+import tempfile
+import numpy as np
+from matplotlib import colors
+import leafmap.leafmap as leafmap
+from pysheds.grid import Grid
+from jenkspy import jenks_breaks
+
+CRS_ARGENTINA = "EPSG:5349"
+CRS_WGS84 = "EPSG:4326"
+
+RUTA_BASE = Path("/home/nissim/Documents/dev/fulbright/ciut-riesgo")
+RUTA_DATOS = RUTA_BASE / "notebooks/data"
+RUTA_PARTIDOS = RUTA_DATOS / "pba_partidos.geojson"
+
+CMAP = "BuPu"
+
+ruta_peligro = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/peligro_raster_10m.tif"
+peligro_xarray = rioxarray.open_rasterio(ruta_peligro)
+
+m = leafmap.Map()
+m.add_raster(peligro_xarray, colormap=CMAP, layer_name="Peligrosidad", nodata=peligro_xarray.rio.nodata)
+
+m.add_layer_control()
+m
+```
