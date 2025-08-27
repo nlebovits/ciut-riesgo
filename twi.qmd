@@ -1,6 +1,10 @@
 ---
 title: "Índice de Humedad Topográfica"
 subtitle: "Cálculo para el Partido de La Plata"
+format:
+  html:
+    embed-resources: true
+    standalone: true
 ---
 
 ## Resumen
