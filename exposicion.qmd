@@ -3,7 +3,11 @@ title: "Exposición"
 subtitle: "Mapeo dasimétrico con datos GHSL"
 ---
 
+
+
 ## Introducion
+
+En este flujo de trabajo aplicamos mapeo dasimétrico para redistribuir proporcionalmente datos censales argentinos de 2022 desde el nivel de radio censal hasta una resolución de 100 metros para la localidad de Esperanza en la provincia de Santa Fe, Argentina, utilizando datos auxiliares de la Capa Global de Asentamientos Humanos (GHSL) de 2023. Este método representa una forma razonablemente efectiva de reducir la escala de datos censales a mayor resolución para su uso en modelado de riesgo climático con fuentes de datos abiertos.
 
 ```{python}
 import geopandas as gpd
@@ -11,26 +15,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterstats
 from rasterio.features import rasterize
-from io import BytesIO, StringIO
+from io import BytesIO
 from owslib.wfs import WebFeatureService
 
 import rioxarray
+import contextily as ctx
+from shapely.geometry import box
+import xarray as xr
 
 
-USE_CRS = "EPSG:5347" # posgar para esperanza
-TRANSFORM = ""
-SHAPE = ""
-NODATA = 0
-DTYPE = int
-ALL_TOUCHED = False
+USE_CRS = "EPSG:5347"  # posgar para esperanza
+WEB_MERCATOR_CRS = "EPSG:3857"
 
-# Basic visualization settings (only for repeated values)
 DEFAULT_FIGSIZE = (12, 10)
 MAP_PADDING = 500
 PLASMA_CMAP = plt.cm.plasma
 
 
-def setup_base_map(figsize=None, bounds=None, boundary_gdf=None, padding_x=None, padding_y=None):
+def setup_base_map(
+    figsize=None, bounds=None, boundary_gdf=None, padding_x=None, padding_y=None
+):
     """Create figure and set up basic map boundaries with padding."""
     if figsize is None:
         figsize = DEFAULT_FIGSIZE
@@ -73,7 +77,6 @@ def add_basemap(ax, zoom=13):
 
 def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
     """Add a north arrow to the map."""
-    # Add north arrow, https://stackoverflow.com/a/58110049/604456
     ax.annotate(
         "N",
         xy=(x, y),
@@ -136,17 +139,12 @@ def wfs_to_gdf(
     gdf = gpd.read_file(BytesIO(response.read()))
     return gdf
 
-# Clean base URL (remove all WFS parameters)
+
 base_url = "https://wms.ign.gob.ar/geoserver/ign/ows"
 
-# Use the function with proper parameters
-munis = wfs_to_gdf(
-    wfs_url=base_url,
-    layer_name="ign:municipio", 
-    srs="EPSG:4326"
-)
+munis = wfs_to_gdf(wfs_url=base_url, layer_name="ign:municipio", srs="EPSG:4326")
 
-esperanza = munis[munis['nam'] == 'Esperanza']
+esperanza = munis[munis["nam"] == "Esperanza"]
 esperanza = esperanza.to_crs(USE_CRS)
 ```
 
@@ -158,10 +156,9 @@ El [mapeo dasimétrico](https://support.esri.com/en-us/gis-dictionary/dasymetric
 
 ### Censo Argentino
 
+Los datos censales provienen del Censo Nacional de Población, Hogares y Viviendas 2022 de Argentina, realizado por el Instituto Nacional de Estadística y Censos (INDEC) [@indec_bases_datos]. Los datos fueron descargados desde la plataforma Redatam y procesados en R en un repositorio separado, ya que resultó más eficiente trabajar con esa herramienta para el procesamiento inicial. Posteriormente, estos datos fueron unidos con el conjunto de datos de radios censales de Argentina y guardados localmente. Se planea hacer disponible una copia de los datos en formato geoespacial como archivo Parquet almacenado en la nube, pero este trabajo aún está en progreso.
+
 ```{python}
-import contextily as ctx
-from shapely.geometry import box
-WEB_MERCATOR_CRS = "EPSG:3857"
 
 datos_censales = gpd.read_parquet(
     "/home/nissim/Documents/dev/fulbright/ciut-redatam/datos_censales_2022_geo.parquet"
@@ -169,203 +166,159 @@ datos_censales = gpd.read_parquet(
 
 datos_censales = datos_censales.to_crs(USE_CRS)
 
-datos_censales_esperanza = datos_censales.clip(esperanza)
+geometria_esperanza = esperanza.geometry.iloc[0]
+centroides_dentro = datos_censales.geometry.centroid.within(geometria_esperanza)
+completamente_dentro = datos_censales.within(geometria_esperanza)
+datos_censales_esperanza = datos_censales[
+    completamente_dentro | centroides_dentro
+].copy()
 
-# Plot population data with esperanza boundaries on top
-fig, ax = create_consistent_map("Población Total por Radio Censal", esperanza)
+fig, ax = create_consistent_map(
+    "Población Total por Radio Censal - Censo 2022", esperanza
+)
 
-# Convert to Web Mercator for proper display
 datos_censales_esperanza_3857 = datos_censales_esperanza.to_crs(WEB_MERCATOR_CRS)
 
 datos_censales_esperanza_3857.plot(
-    column='POB_TOT_P',
-    ax=ax,
-    cmap=PLASMA_CMAP,
-    legend=False,
-    alpha=0.8,
-    zorder=2
+    column="POB_TOT_P", ax=ax, cmap=PLASMA_CMAP, legend=False, alpha=0.8, zorder=2
 )
 
+plt.title("Población Total por Radio Censal - Censo 2022", fontsize=16, fontweight="bold", pad=20)
 plt.show()
 ```
 
 ### Datos GHSL
 
-La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php) [@ghsl_pop2023a] es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación [@tellman2021]. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019].
+La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php) [@ghsl_pop2023a] es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. Para este análisis se utilizan los datos GHSL de 2023, que son los más recientes disponibles y los más cercanos temporalmente al Censo Argentino 2022. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación [@tellman2021]. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019].
 
 ```{python}
-# Load GHSL data with dask chunking for memory efficiency
 ghsl = rioxarray.open_rasterio(
     "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13.tif",
-    chunks={"x": 1024, "y": 1024},  # Adjust chunk size based on your memory constraints
+    chunks={"x": 1024, "y": 1024},
 )
 
-# Reproject to your target CRS with streaming
 ghsl = ghsl.rio.reproject(dst_crs=USE_CRS)
 
-# Clip GHSL data to ONLY the Partido de La Plata boundaries
-# This will remove any GHSL data outside the partido
 ghsl_clipped = ghsl.rio.clip(
-    [esperanza.geometry.iloc[0]],  # Use the actual La Plata partido geometry
-    from_disk=True,  # Process from disk to avoid loading entire dataset into memory
+    [esperanza.geometry.iloc[0]],
+    from_disk=True,
 )
 
-# Mask values <= 0, replacing them with NaN
 ghsl_masked = ghsl_clipped.where(ghsl_clipped > 0)
 
-# Plot GHSL data with esperanza boundaries on top
-fig, ax = create_consistent_map("Datos de población GHSL", esperanza)
-
-# Convert GHSL to Web Mercator for proper display
-ghsl_masked_3857 = ghsl_masked.rio.reproject(WEB_MERCATOR_CRS)
-
-# Re-mask values <= 0 after reprojection
-ghsl_masked_3857 = ghsl_masked_3857.where(ghsl_masked_3857 > 0)
-
-# Plot the GHSL data
-ghsl_masked_3857.plot(
-    ax=ax,
-    cmap=PLASMA_CMAP,
-    alpha=0.75,
-    add_colorbar=False,
-    zorder=2
+fig, ax = create_consistent_map(
+    "Estimaciones de Población GHSL 2023 - Esperanza, Santa Fe", esperanza
 )
 
+ghsl_masked_3857 = ghsl_masked.rio.reproject(WEB_MERCATOR_CRS)
+
+ghsl_masked_3857 = ghsl_masked_3857.where(ghsl_masked_3857 > 0)
+
+ghsl_masked_3857.plot(ax=ax, cmap=PLASMA_CMAP, alpha=0.75, add_colorbar=False, add_labels=False, zorder=2)
+
+plt.title("Estimaciones de Población GHSL 2023 - Esperanza, Santa Fe", fontsize=16, fontweight="bold", pad=20)
 plt.show()
 ```
 
 ## Resultados
 
 ```{python}
-# Step 1: Calculate the total GHSL population per barrio popular using zonal statistics
 
-# Convert to the format expected by rasterstats
-geometries = [geom for geom in datos_censales_esperanza.geometry]
+geometrias = [geom for geom in datos_censales_esperanza.geometry]
 
-# Use rasterstats for vectorized zonal statistics
-stats = rasterstats.zonal_stats(
-    geometries,
-    ghsl_clipped.values[0],  # rasterstats expects 2D array
+estadisticas = rasterstats.zonal_stats(
+    geometrias,
+    ghsl_clipped.values[0],
     affine=ghsl_clipped.rio.transform(),
     stats=["sum"],
-    nodata=ghsl_clipped.rio.nodata,
+    nodata=-200,
 )
 
-# Extract the sum values
-ghsl_totals = [stat["sum"] if stat["sum"] is not None else 0 for stat in stats]
+totales_ghsl = [stat["sum"] if stat["sum"] is not None else 0 for stat in estadisticas]
 
-# Add the GHSL population estimates as a new column
-datos_censales_esperanza["ghsl_pop_est"] = ghsl_totals
+datos_censales_esperanza["estimacion_pob_ghsl"] = totales_ghsl
 
 
-# Get the reference raster properties from GHSL data
-reference_raster = ghsl_clipped
-reference_transform = reference_raster.rio.transform()
-reference_crs = reference_raster.rio.crs
-reference_shape = reference_raster.shape[1:]  # Get 2D shape (height, width)
+raster_referencia = ghsl_clipped
+transformacion_referencia = raster_referencia.rio.transform()
+crs_referencia = raster_referencia.rio.crs
+forma_referencia = raster_referencia.shape[1:]
+raster_ghsl = ghsl_clipped.values[0]
 
 
-# Prepare geometries and values for rasterization
-geometries_ghsl = [
-    (geom, value)
-    for geom, value in zip(
-        datos_censales_esperanza.geometry, datos_censales_esperanza["ghsl_pop_est"]
+geometrias_ghsl = [
+    (geom, valor)
+    for geom, valor in zip(
+        datos_censales_esperanza.geometry,
+        datos_censales_esperanza["estimacion_pob_ghsl"],
     )
 ]
-geometries_pop = [
-    (geom, value)
-    for geom, value in zip(
+geometrias_pob = [
+    (geom, valor)
+    for geom, valor in zip(
         datos_censales_esperanza.geometry, datos_censales_esperanza["POB_TOT_P"]
     )
 ]
 
-# Create GHSL population raster
-ghsl_pop_raster = rasterize(
-    geometries_ghsl,
-    out_shape=reference_shape,
-    transform=reference_transform,
+raster_pob_ghsl = rasterize(
+    geometrias_ghsl,
+    out_shape=forma_referencia,
+    transform=transformacion_referencia,
     fill=0,
     dtype=np.float32,
     all_touched=True,
 )
 
-# Create pop aproximadas raster
-pop_raster = rasterize(
-    geometries_pop,
-    out_shape=reference_shape,
-    transform=reference_transform,
+raster_pob_censo = rasterize(
+    geometrias_pob,
+    out_shape=forma_referencia,
+    transform=transformacion_referencia,
     fill=0,
     dtype=np.float32,
     all_touched=True,
 )
 
 
-# Step 1: Divide original GHSL by the barrio-level GHSL to get fractional population
-# Use masking to avoid division on invalid cells
-mask = (ghsl_clipped.values[0] != -200) & (ghsl_pop_raster > 0.1)
-ghsl_fractional = np.full_like(ghsl_clipped.values[0], -200, dtype=np.float64)
-ghsl_fractional[mask] = ghsl_clipped.values[0][mask] / ghsl_pop_raster[mask]
+mascara = (raster_ghsl > 0) & (raster_ghsl != -200) & (raster_pob_ghsl > 0.1)
+ghsl_fraccional = np.full_like(raster_ghsl, 0, dtype=np.float64)
+ghsl_fraccional[mascara] = raster_ghsl[mascara] / raster_pob_ghsl[mascara]
 
-# Step 2: Multiply fractional population by pop aproximadas to get downscaled data
-mask2 = (ghsl_fractional != -200) & (pop_raster > 0)
-pop_downscaled = np.full_like(ghsl_clipped.values[0], -200, dtype=np.float64)
-pop_downscaled[mask2] = ghsl_fractional[mask2] * pop_raster[mask2]
+mascara2 = (ghsl_fraccional > 0) & (raster_pob_censo > 0)
+pob_redistribuida = np.full_like(raster_ghsl, 0, dtype=np.float64)
+pob_redistribuida[mascara2] = ghsl_fraccional[mascara2] * raster_pob_censo[mascara2]
 
-# Verify the results - exclude -200 from range calculations
-ghsl_valid = ghsl_clipped.values[0] != -200
-fractional_valid = ghsl_fractional != -200
-downscaled_valid = pop_downscaled != -200
-
-# Calculate total from downscaled data (excluding nodata values)
-downscaled_total = pop_downscaled[pop_downscaled != -200].sum()
-
-# Calculate total from census data (assuming you have this in your geodataframe)
-# This depends on which column contains the population in your census data
-census_total = datos_censales_esperanza['POB_TOT_P'].sum()  # Replace with actual column name
-
-print(f"Downscaled population total: {downscaled_total:,.0f}")
-print(f"Census population total: {census_total:,.0f}")
-print(f"Difference: {downscaled_total - census_total:,.0f}")
-print(f"Ratio (downscaled/census): {downscaled_total/census_total:.2f}")
-
-import xarray as xr
-
-# Convert the downscaled numpy array back to xarray DataArray
-# Convert the downscaled numpy array back to xarray DataArray
-pop_downscaled_da = xr.DataArray(
-    pop_downscaled,
-    coords={'y': ghsl_clipped.y, 'x': ghsl_clipped.x},
-    dims=['y', 'x'],
-    attrs=ghsl_clipped.attrs.copy()
+pob_redistribuida_da = xr.DataArray(
+    pob_redistribuida,
+    coords={"y": ghsl_clipped.y, "x": ghsl_clipped.x},
+    dims=["y", "x"],
+    attrs=ghsl_clipped.attrs.copy(),
 )
 
-# Set the CRS to match the original GHSL data
-pop_downscaled_da = pop_downscaled_da.rio.write_crs(USE_CRS)
+pob_redistribuida_da = pob_redistribuida_da.rio.write_crs(USE_CRS)
 
-# Mask out nodata values (-200) and values <= 0
-pop_downscaled_masked = pop_downscaled_da.where(
-    (pop_downscaled_da > 0) & (pop_downscaled_da != -200)
+pob_redistribuida_enmascarada = pob_redistribuida_da.where(pob_redistribuida_da > 0)
+
+total_redistribuido = pob_redistribuida[pob_redistribuida > 0].sum()
+total_censo = datos_censales_esperanza["POB_TOT_P"].sum()
+
+fig, ax = create_consistent_map(
+    "Población Redistribuida a 100m - Esperanza, Santa Fe", esperanza
 )
 
-# Plot downscaled population data with esperanza boundaries on top
-fig, ax = create_consistent_map("Población Downscaled", esperanza)
-
-# Convert to Web Mercator for proper display
-pop_downscaled_masked_3857 = pop_downscaled_masked.rio.reproject(WEB_MERCATOR_CRS)
-
-# Re-mask values after reprojection
-pop_downscaled_masked_3857 = pop_downscaled_masked_3857.where(
-    (pop_downscaled_masked_3857 > 0) & (pop_downscaled_masked_3857 != -200)
+pob_redistribuida_enmascarada_3857 = pob_redistribuida_enmascarada.rio.reproject(
+    WEB_MERCATOR_CRS
 )
 
-# Plot the downscaled population data
-pop_downscaled_masked_3857.plot(
-    ax=ax,
-    cmap=PLASMA_CMAP,
-    alpha=0.75,
-    add_colorbar=False,
-    zorder=2
+pob_redistribuida_enmascarada_3857 = pob_redistribuida_enmascarada_3857.where(
+    pob_redistribuida_enmascarada_3857 > 0
 )
 
+pob_redistribuida_enmascarada_3857.plot(
+    ax=ax, cmap=PLASMA_CMAP, alpha=0.75, add_colorbar=False, add_labels=False, zorder=2
+)
+
+plt.title("Población Censal Redistribuida a 100m - Esperanza, Santa Fe", fontsize=16, fontweight="bold", pad=20)
 plt.show()
 ```
+
+Este flujo de trabajo demuestra la capacidad de redistribuir exitosamente datos de población censal a resolución de 100 metros utilizando datos GHSL para mapeo dasimétrico. El proceso logra una conservación de población del `{python} f"{(total_redistribuido/total_censo)*100:.1f}%"`, redistribuyendo `{python} f"{total_redistribuido:,.0f}"` personas de un total censal de `{python} f"{total_censo:,.0f}"` habitantes. Esta metodología permite una representación espacial más precisa de la distribución poblacional, manteniendo la consistencia con los datos censales oficiales.
