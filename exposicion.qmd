@@ -1,52 +1,371 @@
 ---
 title: "Exposición"
+subtitle: "Mapeo dasimétrico con datos GHSL"
 ---
 
-# Exposición
-
-## Introducción a la Exposición
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-## Análisis de Exposición
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-## Evaluación de Riesgos
-
-Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+## Introducion
 
 ```{python}
 import geopandas as gpd
 import matplotlib.pyplot as plt
-
-from pathlib import Path
-import xarray as xr
-import rioxarray
-from rioxarray.merge import merge_arrays
-import xdem
-import tempfile
 import numpy as np
-from matplotlib import colors
-import leafmap.leafmap as leafmap
-from pysheds.grid import Grid
-from jenkspy import jenks_breaks
+import rasterstats
+from rasterio.features import rasterize
+from io import BytesIO, StringIO
+from owslib.wfs import WebFeatureService
 
-CRS_ARGENTINA = "EPSG:5349"
-CRS_WGS84 = "EPSG:4326"
+import rioxarray
 
-RUTA_BASE = Path("/home/nissim/Documents/dev/fulbright/ciut-riesgo")
-RUTA_DATOS = RUTA_BASE / "notebooks/data"
-RUTA_PARTIDOS = RUTA_DATOS / "pba_partidos.geojson"
 
-CMAP = "BuPu"
+USE_CRS = "EPSG:5347" # posgar para esperanza
+TRANSFORM = ""
+SHAPE = ""
+NODATA = 0
+DTYPE = int
+ALL_TOUCHED = False
 
-ruta_peligro = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/peligro_raster_10m.tif"
-peligro_xarray = rioxarray.open_rasterio(ruta_peligro)
+# Basic visualization settings (only for repeated values)
+DEFAULT_FIGSIZE = (12, 10)
+MAP_PADDING = 500
+PLASMA_CMAP = plt.cm.plasma
 
-m = leafmap.Map()
-m.add_raster(peligro_xarray, colormap=CMAP, layer_name="Peligrosidad", nodata=peligro_xarray.rio.nodata)
 
-m.add_layer_control()
-m
+def setup_base_map(figsize=None, bounds=None, boundary_gdf=None, padding_x=None, padding_y=None):
+    """Create figure and set up basic map boundaries with padding."""
+    if figsize is None:
+        figsize = DEFAULT_FIGSIZE
+    if padding_x is None:
+        padding_x = MAP_PADDING
+    if padding_y is None:
+        padding_y = MAP_PADDING
+
+    if bounds is None and boundary_gdf is not None:
+        bounds = boundary_gdf.total_bounds
+
+    # Convert bounds to Web Mercator for basemap compatibility
+    if bounds is not None:
+        # Create a temporary GeoDataFrame with the bounds to reproject
+        temp_bounds = gpd.GeoDataFrame(
+            geometry=[box(bounds[0], bounds[1], bounds[2], bounds[3])], crs=USE_CRS
+        )
+        bounds_3857 = temp_bounds.to_crs(WEB_MERCATOR_CRS).total_bounds
+    else:
+        bounds_3857 = bounds
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(bounds_3857[0] - padding_x, bounds_3857[2] + padding_x)
+    ax.set_ylim(bounds_3857[1] - padding_y, bounds_3857[3] + padding_y)
+    return fig, ax
+
+
+def add_basemap(ax, zoom=13):
+    """Add CartoDB basemap to the axes."""
+
+    ctx.add_basemap(
+        ax,
+        source=ctx.providers.CartoDB.PositronNoLabels,
+        zorder=0,
+        zoom=zoom,
+    )
+
+    return ax
+
+
+def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
+    """Add a north arrow to the map."""
+    # Add north arrow, https://stackoverflow.com/a/58110049/604456
+    ax.annotate(
+        "N",
+        xy=(x, y),
+        xytext=(x, y - arrow_length),
+        arrowprops=dict(facecolor="black", width=3, headwidth=10),
+        ha="center",
+        va="center",
+        fontsize=14,
+        xycoords=ax.transAxes,
+    )
+
+
+def add_boundary_outline(ax, boundary_gdf, crs="EPSG:3857"):
+    """Add the outline of a boundary geodataframe to a map."""
+    boundary_3857 = boundary_gdf.to_crs(crs)
+    boundary_3857.plot(
+        ax=ax,
+        facecolor="none",
+        edgecolor="black",
+        linewidth=0.5,
+        linestyle="--",
+        legend=False,
+        zorder=5,
+    )
+
+
+def create_consistent_map(title, boundary_gdf, bounds=None):
+    """Create a map with consistent styling and basemap."""
+    fig, ax = setup_base_map(bounds=bounds, boundary_gdf=boundary_gdf)
+
+    add_basemap(ax)
+
+    add_north_arrow(ax)
+
+    add_boundary_outline(ax, boundary_gdf)
+
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
+    ax.set_axis_off()
+
+    return fig, ax
+
+
+def wfs_to_gdf(
+    wfs_url: str, layer_name: str, srs: str = "EPSG:4326"
+) -> gpd.GeoDataFrame:
+    """
+    Descarga una capa WFS y la devuelve como GeoDataFrame.
+
+    Args:
+        wfs_url (str): URL del servicio WFS.
+        layer_name (str): Nombre de la capa (typename).
+        srs (str): Código EPSG del sistema de referencia de coordenadas.
+
+    Returns:
+        gpd.GeoDataFrame: Capa descargada como GeoDataFrame.
+    """
+    wfs = WebFeatureService(url=wfs_url, version="2.0.0")
+    response = wfs.getfeature(typename=layer_name, srsname=srs)
+    gdf = gpd.read_file(BytesIO(response.read()))
+    return gdf
+
+# Clean base URL (remove all WFS parameters)
+base_url = "https://wms.ign.gob.ar/geoserver/ign/ows"
+
+# Use the function with proper parameters
+munis = wfs_to_gdf(
+    wfs_url=base_url,
+    layer_name="ign:municipio", 
+    srs="EPSG:4326"
+)
+
+esperanza = munis[munis['nam'] == 'Esperanza']
+esperanza = esperanza.to_crs(USE_CRS)
+```
+
+## Qué es el mapeo dasimétrico?
+
+El [mapeo dasimétrico](https://support.esri.com/en-us/gis-dictionary/dasymetric-mapping) reorganiza datos cartográficos de una unidad de recolección en áreas más precisas, modificando los límites originales usando datos de apoyo relacionados. Por ejemplo, un atributo de población organizado por tracto censal se vuelve más significativo cuando se eliminan áreas donde es razonable inferir que la gente no vive (cuerpos de agua, terrenos vacíos). En nuestro caso, utilizamos datos GHSL y huellas de edificios como información auxiliar para mejorar la precisión de las estimaciones de distribución poblacional.
+
+## Fuentes de datos
+
+### Censo Argentino
+
+```{python}
+import contextily as ctx
+from shapely.geometry import box
+WEB_MERCATOR_CRS = "EPSG:3857"
+
+datos_censales = gpd.read_parquet(
+    "/home/nissim/Documents/dev/fulbright/ciut-redatam/datos_censales_2022_geo.parquet"
+)
+
+datos_censales = datos_censales.to_crs(USE_CRS)
+
+datos_censales_esperanza = datos_censales.clip(esperanza)
+
+# Plot population data with esperanza boundaries on top
+fig, ax = create_consistent_map("Población Total por Radio Censal", esperanza)
+
+# Convert to Web Mercator for proper display
+datos_censales_esperanza_3857 = datos_censales_esperanza.to_crs(WEB_MERCATOR_CRS)
+
+datos_censales_esperanza_3857.plot(
+    column='POB_TOT_P',
+    ax=ax,
+    cmap=PLASMA_CMAP,
+    legend=False,
+    alpha=0.8,
+    zorder=2
+)
+
+plt.show()
+```
+
+### Datos GHSL
+
+La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php) [@ghsl_pop2023a] es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación [@tellman2021]. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019].
+
+```{python}
+# Load GHSL data with dask chunking for memory efficiency
+ghsl = rioxarray.open_rasterio(
+    "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13.tif",
+    chunks={"x": 1024, "y": 1024},  # Adjust chunk size based on your memory constraints
+)
+
+# Reproject to your target CRS with streaming
+ghsl = ghsl.rio.reproject(dst_crs=USE_CRS)
+
+# Clip GHSL data to ONLY the Partido de La Plata boundaries
+# This will remove any GHSL data outside the partido
+ghsl_clipped = ghsl.rio.clip(
+    [esperanza.geometry.iloc[0]],  # Use the actual La Plata partido geometry
+    from_disk=True,  # Process from disk to avoid loading entire dataset into memory
+)
+
+# Mask values <= 0, replacing them with NaN
+ghsl_masked = ghsl_clipped.where(ghsl_clipped > 0)
+
+# Plot GHSL data with esperanza boundaries on top
+fig, ax = create_consistent_map("Datos de población GHSL", esperanza)
+
+# Convert GHSL to Web Mercator for proper display
+ghsl_masked_3857 = ghsl_masked.rio.reproject(WEB_MERCATOR_CRS)
+
+# Re-mask values <= 0 after reprojection
+ghsl_masked_3857 = ghsl_masked_3857.where(ghsl_masked_3857 > 0)
+
+# Plot the GHSL data
+ghsl_masked_3857.plot(
+    ax=ax,
+    cmap=PLASMA_CMAP,
+    alpha=0.75,
+    add_colorbar=False,
+    zorder=2
+)
+
+plt.show()
+```
+
+## Resultados
+
+```{python}
+# Step 1: Calculate the total GHSL population per barrio popular using zonal statistics
+
+# Convert to the format expected by rasterstats
+geometries = [geom for geom in datos_censales_esperanza.geometry]
+
+# Use rasterstats for vectorized zonal statistics
+stats = rasterstats.zonal_stats(
+    geometries,
+    ghsl_clipped.values[0],  # rasterstats expects 2D array
+    affine=ghsl_clipped.rio.transform(),
+    stats=["sum"],
+    nodata=ghsl_clipped.rio.nodata,
+)
+
+# Extract the sum values
+ghsl_totals = [stat["sum"] if stat["sum"] is not None else 0 for stat in stats]
+
+# Add the GHSL population estimates as a new column
+datos_censales_esperanza["ghsl_pop_est"] = ghsl_totals
+
+
+# Get the reference raster properties from GHSL data
+reference_raster = ghsl_clipped
+reference_transform = reference_raster.rio.transform()
+reference_crs = reference_raster.rio.crs
+reference_shape = reference_raster.shape[1:]  # Get 2D shape (height, width)
+
+
+# Prepare geometries and values for rasterization
+geometries_ghsl = [
+    (geom, value)
+    for geom, value in zip(
+        datos_censales_esperanza.geometry, datos_censales_esperanza["ghsl_pop_est"]
+    )
+]
+geometries_pop = [
+    (geom, value)
+    for geom, value in zip(
+        datos_censales_esperanza.geometry, datos_censales_esperanza["POB_TOT_P"]
+    )
+]
+
+# Create GHSL population raster
+ghsl_pop_raster = rasterize(
+    geometries_ghsl,
+    out_shape=reference_shape,
+    transform=reference_transform,
+    fill=0,
+    dtype=np.float32,
+    all_touched=True,
+)
+
+# Create pop aproximadas raster
+pop_raster = rasterize(
+    geometries_pop,
+    out_shape=reference_shape,
+    transform=reference_transform,
+    fill=0,
+    dtype=np.float32,
+    all_touched=True,
+)
+
+
+# Step 1: Divide original GHSL by the barrio-level GHSL to get fractional population
+# Use masking to avoid division on invalid cells
+mask = (ghsl_clipped.values[0] != -200) & (ghsl_pop_raster > 0.1)
+ghsl_fractional = np.full_like(ghsl_clipped.values[0], -200, dtype=np.float64)
+ghsl_fractional[mask] = ghsl_clipped.values[0][mask] / ghsl_pop_raster[mask]
+
+# Step 2: Multiply fractional population by pop aproximadas to get downscaled data
+mask2 = (ghsl_fractional != -200) & (pop_raster > 0)
+pop_downscaled = np.full_like(ghsl_clipped.values[0], -200, dtype=np.float64)
+pop_downscaled[mask2] = ghsl_fractional[mask2] * pop_raster[mask2]
+
+# Verify the results - exclude -200 from range calculations
+ghsl_valid = ghsl_clipped.values[0] != -200
+fractional_valid = ghsl_fractional != -200
+downscaled_valid = pop_downscaled != -200
+
+# Calculate total from downscaled data (excluding nodata values)
+downscaled_total = pop_downscaled[pop_downscaled != -200].sum()
+
+# Calculate total from census data (assuming you have this in your geodataframe)
+# This depends on which column contains the population in your census data
+census_total = datos_censales_esperanza['POB_TOT_P'].sum()  # Replace with actual column name
+
+print(f"Downscaled population total: {downscaled_total:,.0f}")
+print(f"Census population total: {census_total:,.0f}")
+print(f"Difference: {downscaled_total - census_total:,.0f}")
+print(f"Ratio (downscaled/census): {downscaled_total/census_total:.2f}")
+
+import xarray as xr
+
+# Convert the downscaled numpy array back to xarray DataArray
+# Convert the downscaled numpy array back to xarray DataArray
+pop_downscaled_da = xr.DataArray(
+    pop_downscaled,
+    coords={'y': ghsl_clipped.y, 'x': ghsl_clipped.x},
+    dims=['y', 'x'],
+    attrs=ghsl_clipped.attrs.copy()
+)
+
+# Set the CRS to match the original GHSL data
+pop_downscaled_da = pop_downscaled_da.rio.write_crs(USE_CRS)
+
+# Mask out nodata values (-200) and values <= 0
+pop_downscaled_masked = pop_downscaled_da.where(
+    (pop_downscaled_da > 0) & (pop_downscaled_da != -200)
+)
+
+# Plot downscaled population data with esperanza boundaries on top
+fig, ax = create_consistent_map("Población Downscaled", esperanza)
+
+# Convert to Web Mercator for proper display
+pop_downscaled_masked_3857 = pop_downscaled_masked.rio.reproject(WEB_MERCATOR_CRS)
+
+# Re-mask values after reprojection
+pop_downscaled_masked_3857 = pop_downscaled_masked_3857.where(
+    (pop_downscaled_masked_3857 > 0) & (pop_downscaled_masked_3857 != -200)
+)
+
+# Plot the downscaled population data
+pop_downscaled_masked_3857.plot(
+    ax=ax,
+    cmap=PLASMA_CMAP,
+    alpha=0.75,
+    add_colorbar=False,
+    zorder=2
+)
+
+plt.show()
 ```
