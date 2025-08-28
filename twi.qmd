@@ -1,5 +1,5 @@
 ---
-title: "Índice de Humedad Topográfica"
+title: "TWI y HAND"
 subtitle: "Cálculo para el Partido de La Plata"
 format:
   html:
@@ -9,7 +9,7 @@ format:
 
 ## Resumen
 
-Este documento desarrolla un índice de humedad topográfica para el Partido de La Plata empleando datos de elevación FABDEM de acceso libre y las bibliotecas pysheds y xDEM mediante metodologías consolidadas. Los resultados se contrastan con modelado hidrológico de la Facultad de Ingeniería, evidenciando que el TWI representa una alternativa viable para contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible, especialmente considerando que el proceso completo requiere únicamente unos minutos y no tiene costo asociado. Este enfoque, respaldado científicamente pero con limitaciones reconocidas, constituye una solución práctica para evaluaciones preliminares de riesgo de inundación a escala municipal cuando se carece de información más detallada.
+Este documento evalúa dos métricas topográficas simples para el mapeo de peligro de inundación: el Índice de Humedad Topográfica (TWI) y la Altura Sobre Drenaje Más Cercano (HAND). Utilizando el Partido de La Plata como caso de estudio, desarrollamos ambos índices mediante metodologías consolidadas con datos de elevación FABDEM de acceso libre y las bibliotecas pysheds y xDEM. Los resultados se contrastan con modelado hidrológico oficial disponible de la Facultad de Ingeniería como punto de comparación, evidenciando que tanto el TWI como el HAND representan alternativas viables para contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible. Ambos enfoques, respaldados científicamente pero con limitaciones reconocidas, constituyen soluciones prácticas para evaluaciones preliminares de riesgo de inundación a escala municipal cuando se carece de información más detallada.
 
 ## Introducción
 
@@ -17,17 +17,21 @@ Este documento desarrolla un índice de humedad topográfica para el Partido de 
 
 El TWI es un índice establecido que combina la pendiente del terreno con el área de drenaje aguas arriba para identificar zonas propensas a la acumulación de agua e inundaciones. Calcula valores distribuidos espacialmente donde números más altos indican mayor potencial de encharcamiento y valores más bajos sugieren condiciones más secas. Es una herramienta ampliamente reconocida en hidrología para modelar condiciones de humedad del paisaje [@atlas_twi_2025].
 
-### ¿Por qué usarlo?
+### ¿Qué es HAND?
 
-El TWI es un método establecido que ha sido utilizado por agencias como el Illinois State Water Survey para identificar áreas urbanas con riesgo de inundación, demostrando su validez científica y aplicación práctica. La principal ventaja del TWI es que proporciona información valiosa sobre riesgo de inundaciones a un costo extremadamente bajo comparado con estudios hidrológicos detallados. Es gratuito, rápido de calcular usando datos topográficos que suelen estar disponibles, y fácil de interpretar, lo que lo convierte en una excelente herramienta de planificación inicial [@ballerine_twi].
+HAND (Altura Sobre Drenaje Más Cercano) es un descriptor cuantitativo del terreno que representa la diferencia de elevación entre cada pixel en la ladera y el punto más cercano en la red de drenaje hacia donde fluye [@johnson2019]. Este método ha sido ampliamente utilizado para la predicción de extensión de inundaciones porque produce resultados comparables a marcos de modelado más complejos como HEC-RAS, pero con menores requerimientos computacionales [@johnson2019]. HAND ha demostrado ser especialmente efectivo como indicador computacionalmente eficiente de susceptibilidad a inundaciones, requiriendo únicamente datos topográficos como entrada [@watson2024].
+
+### ¿Por qué usar estas métricas?
+
+Tanto el TWI como HAND son métodos establecidos que han demostrado su validez científica en múltiples aplicaciones. El TWI ha sido utilizado por agencias como el Illinois State Water Survey para identificar áreas urbanas con riesgo de inundación [@ballerine_twi], mientras que HAND ha sido implementado por el Centro Nacional del Agua de Estados Unidos para mapeo de inundaciones a escala nacional [@johnson2019]. La principal ventaja de ambas métricas es que proporcionan información valiosa sobre riesgo de inundaciones a un costo extremadamente bajo comparado con estudios hidrológicos detallados. Son gratuitos, rápidos de calcular usando datos topográficos que suelen estar disponibles, y fáciles de interpretar, convirtiéndolos en excelentes herramientas de planificación inicial. Estudios recientes han demostrado que estas metodologías pueden replicar mapas de inundación de alta resolución como indicadores de susceptibilidad a inundaciones [@watson2024; @li2023].
 
 ### Limitaciones
 
-Es fundamental entender que el TWI es una medida derivada puramente del terreno y no considera factores como infraestructura urbana, sistemas de drenaje, vegetación, o patrones climáticos locales. Por tanto, es una herramienta muy general que solo proporciona una noción del riesgo relativo de inundación. No debe utilizarse para tomar decisiones a nivel de parcela específica, ni puede estimar la profundidad de agua de inundación, que es crucial para el manejo detallado de aguas pluviales. El índice se correlaciona principalmente con flujo superficial y no puede capturar interacciones complejas con aguas subterráneas.
+Es fundamental entender que tanto el TWI como HAND son medidas derivadas puramente del terreno y no consideran factores como infraestructura urbana, sistemas de drenaje, vegetación, o patrones climáticos locales. Por tanto, son herramientas que solo proporcionan una noción del riesgo relativo de inundación. No deben utilizarse para tomar decisiones a nivel de parcela específica. Para HAND específicamente, las diferencias en las características del terreno y las incertidumbres asociadas con la estimación óptima de parámetros pueden afectar la precisión de los resultados [@thalakkottukara2024]. Ambas métricas se correlacionan principalmente con flujo superficial y no pueden capturar interacciones complejas con aguas subterráneas o la dinámica completa de sistemas hidrológicos urbanos.
 
 ### Uso apropiado
 
-Las investigaciones han confirmado que existe correlación entre valores altos de TWI y reportes ciudadanos de inundaciones urbanas menores, validando su utilidad en contextos urbanizados [@kelleher2020]. El TWI es especialmente valioso para gobiernos municipales con recursos limitados como primera aproximación para identificar áreas de riesgo relativo de inundaciones, desarrollar planes de emergencia y priorizar estudios más detallados en zonas críticas. Proporciona un punto de partida sólido y científicamente respaldado para la gestión del riesgo de inundaciones sin requerir inversión significativa en estudios especializados.
+Las investigaciones han confirmado que existe correlación entre valores altos de TWI y reportes ciudadanos de inundaciones urbanas menores, validando su utilidad en contextos urbanizados [@kelleher2020]. Similarmente, HAND ha demostrado ser adecuado para el mapeo de inundaciones en regiones con escasez de datos, proporcionando capacidad predictiva comparable para mapear áreas de inundación durante eventos de lluvia extrema [@thalakkottukara2024]. Ambas métricas son especialmente valiosas para gobiernos municipales con recursos limitados como primera aproximación para identificar áreas de riesgo relativo de inundaciones, desarrollar planes de emergencia y priorizar estudios más detallados en zonas críticas. Proporcionan un punto de partida sólido y científicamente respaldado para la gestión del riesgo de inundaciones sin requerir inversión significativa en estudios especializados.
 
 ## Herramientas
 
@@ -302,16 +306,6 @@ la_plata.plot(
 )
 ```
 
-####
-
-Will add soon:
-https://doi.org/10.1080/10106049.2024.2387073
-https://doi.org/10.1016/j.envsoft.2022.105565
-https://link.springer.com/article/10.1007/s12145-023-01218-x
-https://repository.library.noaa.gov/view/noaa/51302
-
-[Hay que convertir los datos HAND a xarray y agregar al mapa interactivo.]
-
 ```{python}
 hand = grilla.compute_hand(
     direcciones_flujo, dem_inflado, acumulacion > 200, nodata_value=np.int32(0)
@@ -343,15 +337,118 @@ plt.title("Altura Sobre Drenaje Más Cercano (HAND)", size=14)
 plt.tight_layout()
 ```
 
-## Comparativa de modelación FLO-2D y TWI
+### Análisis de distribuciones
 
-Disponemos de datos oficiales de peligro de inundación desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que simuló la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. La comparación visual entre nuestros resultados del TWI y estos mapas oficiales de peligrosidad permite evaluar qué tan bien corresponde este índice topográfico simple con el modelado hidráulico más completo.
-
-Para mejorar la comparabilidad entre ambos enfoques, aplicamos cortes de Jenks con cuatro clases al TWI para aproximar las zonas de peligro alto, medio, bajo y muy bajo/nulo que se encuentran en la capa de peligrosidad del departamento de ingeniería. Esta técnica de clasificación permite una mejor comparación visual entre ambos enfoques metodológicos y facilita la identificación de correspondencias espaciales.
-
-Un aspecto importante a considerar es que existen diferencias metodológicas fundamentales entre ambos enfoques. El modelado de ingeniería toma en cuenta la infraestructura urbana, especialmente el sistema de calles de la ciudad y elementos del drenaje urbano, mientras que el TWI se basa únicamente en la topografía del terreno.
+Para comprender mejor las características de nuestras métricas, analizamos las distribuciones de valores de TWI y HAND mediante histogramas. Esto nos permite identificar los rangos típicos de valores y la forma de la distribución para cada métrica.
 
 ```{python}
+# Preparar HAND con transformación de doble raíz cuadrada
+hand_xarray_reproyectada = hand_xarray.rio.reproject(CRS_ARGENTINA)
+hand_double_sqrt_full = np.sqrt(np.sqrt(hand_xarray_reproyectada))
+hand_double_sqrt_mask = hand_double_sqrt_full.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
+hand_double_sqrt_mask = xr.where(~hand_double_sqrt_mask.isnull(), 1, 0)
+hand_double_sqrt_masked = xr.where(hand_double_sqrt_mask == 1, hand_double_sqrt_full, np.nan)
+hand_double_sqrt_masked = hand_double_sqrt_masked.rio.write_crs(hand_double_sqrt_full.rio.crs)
+hand_double_sqrt_masked = hand_double_sqrt_masked.rio.write_transform(hand_double_sqrt_full.rio.transform())
+
+# Preparar TWI
+twi_mask = twi_xarray.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
+twi_mask = xr.where(~twi_mask.isnull(), 1, 0)
+twi_masked = xr.where(twi_mask == 1, twi_xarray, np.nan)
+twi_masked = twi_masked.rio.write_crs(twi_xarray.rio.crs)
+twi_masked = twi_masked.rio.write_transform(twi_xarray.rio.transform())
+
+# Preparar datos válidos para histogramas
+twi_values = twi_masked.values[~np.isnan(twi_masked.values)]
+hand_original = hand_xarray_reproyectada.values[~np.isnan(hand_xarray_reproyectada.values)]
+hand_double_sqrt = np.sqrt(np.sqrt(hand_original))
+
+# Calcular cortes de cuantiles
+twi_quantiles = np.percentile(twi_values, [25, 50, 75])
+hand_double_sqrt_quantiles = np.percentile(hand_double_sqrt, [25, 50, 75])
+
+# Obtener colormap para usar los mismos colores que en los mapas
+import matplotlib.cm as cm
+cmap = cm.get_cmap(CMAP)
+cmap_colors = [cmap(i/3) for i in range(4)]  # 4 colores del colormap
+
+# Función para asignar colores por cuantiles usando CMAP
+def assign_quantile_colors_cmap(values, quantiles):
+    colors = []
+    for val in values:
+        if val <= quantiles[0]:
+            colors.append(cmap_colors[0])  # Q1
+        elif val <= quantiles[1]:
+            colors.append(cmap_colors[1])  # Q2
+        elif val <= quantiles[2]:
+            colors.append(cmap_colors[2])  # Q3
+        else:
+            colors.append(cmap_colors[3])  # Q4
+    return colors
+
+# Crear figura con subplots
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+# Histograma TWI con colores por cuantiles
+n_bins = 50
+counts1, bins1, patches1 = ax1.hist(twi_values, bins=n_bins, alpha=0.8, edgecolor='black')
+bin_centers1 = (bins1[:-1] + bins1[1:]) / 2
+colors1 = assign_quantile_colors_cmap(bin_centers1, twi_quantiles)
+for patch, color in zip(patches1, colors1):
+    patch.set_facecolor(color)
+
+ax1.set_xlabel('Valores TWI')
+ax1.set_ylabel('Frecuencia')
+ax1.set_title('Distribución TWI con Cortes de Cuantiles')
+ax1.grid(True, alpha=0.3)
+
+# Agregar líneas de cuantiles
+for i, q in enumerate(twi_quantiles):
+    ax1.axvline(q, color='black', linestyle='--', linewidth=2, alpha=0.7)
+    ax1.text(q, ax1.get_ylim()[1]*0.9, f'Q{i+1}', rotation=90, ha='right')
+
+# Histograma HAND (double sqrt) con colores por cuantiles
+counts2, bins2, patches2 = ax2.hist(hand_double_sqrt, bins=n_bins, alpha=0.8, edgecolor='black')
+bin_centers2 = (bins2[:-1] + bins2[1:]) / 2
+colors2 = assign_quantile_colors_cmap(bin_centers2, hand_double_sqrt_quantiles)
+for patch, color in zip(patches2, colors2):
+    patch.set_facecolor(color)
+
+ax2.set_xlabel('Valores HAND (√√metros)')
+ax2.set_ylabel('Frecuencia')
+ax2.set_title('Distribución HAND (Doble Raíz Cuadrada) con Cortes de Cuantiles')
+ax2.grid(True, alpha=0.3)
+
+# Agregar líneas de cuantiles
+for i, q in enumerate(hand_double_sqrt_quantiles):
+    ax2.axvline(q, color='black', linestyle='--', linewidth=2, alpha=0.7)
+    ax2.text(q, ax2.get_ylim()[1]*0.9, f'Q{i+1}', rotation=90, ha='right')
+
+# Crear leyenda común usando los colores del CMAP
+from matplotlib.patches import Patch
+legend_elements = [
+    Patch(facecolor=cmap_colors[0], label='Q1 (0-25%)'),
+    Patch(facecolor=cmap_colors[1], label='Q2 (25-50%)'),
+    Patch(facecolor=cmap_colors[2], label='Q3 (50-75%)'),
+    Patch(facecolor=cmap_colors[3], label='Q4 (75-100%)')
+]
+fig.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 0.95), ncol=4)
+
+plt.tight_layout()
+plt.subplots_adjust(top=0.85)
+plt.show()
+```
+
+## Comparativa de modelación FLO-2D con TWI y HAND
+
+Para validar la efectividad de estas métricas topográficas simples, utilizamos datos oficiales de peligro de inundación desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos de referencia fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que simuló la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. La disponibilidad de este modelado detallado proporciona una oportunidad única para evaluar qué tan bien corresponden estos índices topográficos simples con el modelado hidráulico más completo como prueba de concepto.
+
+Para la comparación, presentamos el TWI en su forma continua, permitiendo visualizar la variación completa de valores de humedad topográfica. Para HAND, aplicamos cortes de cuantiles con cuatro clases que dividen el área de estudio en zonas de igual extensión (25% cada una), facilitando la identificación de gradientes de riesgo relativo de inundación. Esta aproximación permite una comparación visual clara entre los diferentes enfoques metodológicos.
+
+Un aspecto importante a considerar es que existen diferencias metodológicas fundamentales entre estos enfoques. El modelado de ingeniería toma en cuenta la infraestructura urbana, especialmente el sistema de calles de la ciudad y elementos del drenaje urbano, mientras que tanto el TWI como HAND se basan únicamente en la topografía del terreno.
+
+```{python}
+# Preparar datos para el mapa
 ruta_peligro = RUTA_DATOS / "peligro_raster_10m.tif"
 peligro_xarray = rioxarray.open_rasterio(ruta_peligro)
 
@@ -359,34 +456,19 @@ la_plata_centroid = la_plata.to_crs(CRS_WGS84).centroid.iloc[0]
 center_lat = la_plata_centroid.y
 center_lon = la_plata_centroid.x
 
-hand_xarray_reproyectada = hand_xarray.rio.reproject(CRS_ARGENTINA)
-hand_log = np.log(hand_xarray_reproyectada + 1)
-hand_mask = hand_log.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
-hand_mask = xr.where(~hand_mask.isnull(), 1, 0)
-hand_masked = xr.where(hand_mask == 1, hand_log, np.nan)
-hand_masked = hand_masked.rio.write_crs(hand_log.rio.crs)
-hand_masked = hand_masked.rio.write_transform(hand_log.rio.transform())
+# Crear clases de quantiles para HAND usando los breaks calculados
+hand_quantile_classes = xr.where(hand_double_sqrt_masked <= hand_double_sqrt_quantiles[0], 1,
+                                xr.where(hand_double_sqrt_masked <= hand_double_sqrt_quantiles[1], 2,
+                                        xr.where(hand_double_sqrt_masked <= hand_double_sqrt_quantiles[2], 3, 4)))
+hand_quantile_classes = xr.where(~hand_double_sqrt_masked.isnull(), hand_quantile_classes, np.nan)
+hand_quantile_classes = hand_quantile_classes.rio.write_crs(hand_double_sqrt_masked.rio.crs)
+hand_quantile_classes = hand_quantile_classes.rio.write_transform(hand_double_sqrt_masked.rio.transform())
 
-twi_mask = twi_xarray.rio.clip(la_plata.geometry, la_plata.crs, drop=False, invert=False)
-twi_mask = xr.where(~twi_mask.isnull(), 1, 0)
-twi_masked = xr.where(twi_mask == 1, twi_xarray, np.nan)
-twi_masked = twi_masked.rio.write_crs(twi_xarray.rio.crs)
-twi_masked = twi_masked.rio.write_transform(twi_xarray.rio.transform())
-
-twi_valid = twi_masked.values[~np.isnan(twi_masked.values)]
-sample_size = min(10000, len(twi_valid))
-twi_sample = np.random.choice(twi_valid, size=sample_size, replace=False)
-breaks = jenks_breaks(twi_sample, n_classes=4)
-twi_jenks = xr.where(twi_masked <= breaks[1], 1,
-                     xr.where(twi_masked <= breaks[2], 2,
-                              xr.where(twi_masked <= breaks[3], 3, 4)))
-twi_jenks = xr.where(~twi_masked.isnull(), twi_jenks, np.nan)
-twi_jenks = twi_jenks.rio.write_crs(twi_xarray.rio.crs)
-twi_jenks = twi_jenks.rio.write_transform(twi_xarray.rio.transform())
-
+# Preparar datos de peligrosidad
 peligro_2d = peligro_xarray.sel(band=1).astype('float32')
 peligro_clipped = peligro_2d.rio.clip(la_plata.geometry, la_plata.crs)
 
+# Crear mapa
 m = leafmap.Map(center=[center_lat, center_lon], zoom=9)
 m.add_tile_layer(
     url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
@@ -394,9 +476,9 @@ m.add_tile_layer(
     attribution="Google",
 )
 
+# Agregar capas
 m.add_raster(twi_masked, colormap=CMAP, layer_name="TWI", nodata=np.nan)
-m.add_raster(twi_jenks, colormap=CMAP, layer_name="TWI Jenks (4 clases)", nodata=np.nan)
-m.add_raster(hand_masked, colormap=CMAP + "_r", layer_name="HAND", nodata=np.nan)
+m.add_raster(hand_quantile_classes, colormap=CMAP + "_r", layer_name="HAND (Cuantiles)", nodata=np.nan)
 m.add_raster(peligro_clipped, colormap=CMAP, layer_name="Peligrosidad", nodata=peligro_clipped.rio.nodata)
 
 la_plata_geojson = la_plata.to_crs(CRS_WGS84).__geo_interface__
@@ -412,4 +494,4 @@ m
 
 ## Conclusión
 
-Nuestro análisis demuestra que el TWI corresponde bien al modelado hidrológico desarrollado por la Facultad de Ingeniería Hídrica de la Universidad Nacional de La Plata. A pesar de las diferencias metodológicas entre ambos enfoques, la correspondencia espacial general es sólida, proporcionando confianza en el uso del TWI como herramienta de evaluación preliminar para el riesgo de inundaciones. El TWI constituye una herramienta valiosa y científicamente respaldada para evaluaciones preliminares de riesgo de inundación a escala municipal, especialmente en contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible. Los resultados son consistentes con estudios internacionales realizados en otras ciudades alrededor del mundo, lo que nos proporciona confianza para usar estos datos en evaluaciones iniciales de peligro de inundación.
+Nuestro análisis demuestra que tanto el TWI como HAND corresponden bien al modelado hidrológico desarrollado por la Facultad de Ingeniería Hídrica de la Universidad Nacional de La Plata. A pesar de las diferencias metodológicas entre estos enfoques, la correspondencia espacial general es sólida, proporcionando confianza en el uso de ambas métricas como herramientas de evaluación preliminar para el riesgo de inundaciones. Tanto el TWI como HAND constituyen herramientas valiosas y científicamente respaldadas para evaluaciones preliminares de riesgo de inundación a escala municipal, especialmente en contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible. Los resultados son consistentes con estudios internacionales que han validado estas metodologías en ciudades como Katmandú, Nepal [@watson2024; @li2023] y en regiones rurales de Estados Unidos [@thalakkottukara2024], lo que nos proporciona confianza para usar estos datos en evaluaciones iniciales de peligro de inundación.
