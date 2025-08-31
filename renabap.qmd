@@ -5,9 +5,9 @@ subtitle: "Análisis de la exposición poblacional a peligros de inundación en 
 
 ## Resumen ejecutivo
 
-Este análisis utiliza datos globales abiertos de huellas de edificios para lograr una estimación más precisa de la exposición a peligros de inundación en asentamientos informales en La Plata. Este método mejora significativamente las estimaciones previas utilizando datos del RENABAP y sugiere que los niveles de exposición son hasta 1.7 veces más altos de lo que se pensaba anteriormente, alcanzando potencialmente a aproximadamente 23,000 familias. Encontramos que los datos del RENABAP subestiman el número de familias en un promedio del 41%, y que el conjunto de datos globales de huellas de edificios representa, por tanto, una herramienta significativa para comprender mejor la exposición a peligros de inundación en La Plata.
+Este análisis utiliza datos globales abiertos de huellas de edificios para lograr una estimación más precisa de la exposición a peligros de inundación en asentamientos informales en La Plata. Este método mejora significativamente las estimaciones previas utilizando datos del RENABAP y revela una subestimación dramática en los datos oficiales. Encontramos que los datos del RENABAP subestiman el número de edificios en un promedio del 41%, lo que equivale a aproximadamente 41,000 viviendas faltantes que no están contabilizadas en las estadísticas oficiales. Tomando un promedio razonable de 3 a 5 personas por vivienda, esto representa entre 120,000 y 205,000 personas que podrían estar no contabilizadas en los asentamientos informales. El conjunto de datos globales de huellas de edificios representa, por tanto, una herramienta crítica para comprender la verdadera magnitud de la exposición a peligros de inundación en La Plata.
 
-Encontramos que Villa Montoro tiene el mayor número de edificios estimados expuestos a peligro alto bajo la precipitación máxima probable, con 555 edificaciones. La Cuenca Arroyo del Gato presenta el mayor número total de edificios estimados expuestos con 2,662, seguida por la Cuenca Maldonado con 1,000. Además, un análisis comparativo de exposición bajo diferentes períodos de retorno para la Cuenca Maldonado revela diferencias significativas en la exposición estimada dependiendo del período de retorno considerado. Mientras que la precipitación máxima probable estima un total de 1,000 edificios expuestos para la cuenca, el período de retorno de 25 años estima 77 edificios expuestos y el período de retorno de 100 años estima 141 edificios expuestos a peligro alto, planteando así interrogantes sobre cuál de estos es más útil para iniciar el proceso de reubicación de viviendas en áreas de alto peligro en asentamientos informales.
+Encontramos que Villa Montoro tiene el mayor número de edificios expuestos a peligro alto bajo la precipitación máxima probable, con 555 edificios. La Cuenca Arroyo del Gato presenta el mayor número total de edificios expuestos con 2,662, seguida por la Cuenca Maldonado con 1,000. Además, un análisis comparativo de exposición bajo diferentes períodos de retorno para la Cuenca Maldonado revela diferencias significativas en la exposición estimada dependiendo del período de retorno considerado. Mientras que la precipitación máxima probable estima un total de 1,000 edificios expuestos para la cuenca, el período de retorno de 25 años estima 77 edificios expuestos y el período de retorno de 100 años estima 141 edificios expuestos a peligro alto, planteando así interrogantes sobre cuál de estos es más útil para iniciar el proceso de reubicación de viviendas en áreas de alto peligro en asentamientos informales.
 
 ## Objetivos
 
@@ -15,7 +15,7 @@ Este proyecto tiene como objetivo principal mejorar el mapeo de la exposición a
 
 El trabajo busca cuantificar la exposición a peligros de inundación en asentamientos informales como herramienta para la toma de decisiones a nivel municipal, desarrollando metodologías de análisis espacial que permitan identificar las áreas y poblaciones de mayor riesgo. Asimismo, se propone proporcionar información técnica que ayude a mitigar el riesgo de inundación en asentamientos informales y obtener estimaciones más precisas de la población expuesta utilizando datos de huellas de edificios, complementando las limitaciones conocidas de los datos del RENABAP.
 
-Un objetivo adicional de este análisis es intentar obtener una estimación más precisa utilizando datos abiertos de huellas de edificios que los datos del RENABAP nos proporcionan. Los últimos datos del RENABAP fueron publicados en 2023 y están basados en proyecciones derivadas del censo de 2010, por lo que no se espera que sean especialmente precisos para las condiciones actuales.
+Un objetivo adicional de este análisis es obtener estimaciones más precisas de exposición utilizando datos abiertos de huellas de edificios en lugar de depender únicamente de los datos del RENABAP. Los últimos datos del RENABAP fueron publicados en 2023 y están basados en proyecciones derivadas del censo de 2010, por lo que no se espera que sean especialmente precisos para las condiciones actuales.
 
 ```{python}
 import matplotlib.pyplot as plt
@@ -40,6 +40,9 @@ from botocore.config import Config
 import itables
 from itables import show
 from IPython.display import HTML, display
+
+# For scale bars and north arrows
+from matplotlib_map_utils import north_arrow, scale_bar, ScaleBar
 
 
 # =============================================================================
@@ -188,18 +191,34 @@ def add_basemap(ax, zoom=13):
     return ax
 
 
-def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
-    """Add a north arrow to the map."""
-    # Add north arrow, https://stackoverflow.com/a/58110049/604456
-    ax.annotate(
-        "N",
-        xy=(x, y),
-        xytext=(x, y - arrow_length),
-        arrowprops=dict(facecolor="black", width=3, headwidth=10),
-        ha="center",
-        va="center",
-        fontsize=14,
-        xycoords=ax.transAxes,
+ScaleBar.set_size("xs")
+
+def add_scale_bar_and_north_arrow(ax, location="upper right", scale_color="black", arrow_color="black"):
+    """Add a scale bar and north arrow to the map using matplotlib_map_utils."""
+    # Add scale bar using matplotlib_map_utils ScaleBar class with ticks style
+    scalebar = ScaleBar(
+        location="upper left",
+        style="ticks",
+        bar={
+            "projection": "EPSG:3857",
+            "tickcolors": scale_color,
+            "basecolors": scale_color,
+            "minor_type": "none"
+        },
+        labels={"style": "first_last"}
+    )
+    ax.add_artist(scalebar)
+    
+    # Add north arrow using matplotlib_map_utils
+    north_arrow(
+        ax,
+        location=location,
+        scale=0.3,  # Small size
+        rotation={"degrees": 0},
+        base={"facecolor": "none", "edgecolor": arrow_color, "linewidth": 1},
+        fancy=True,
+        shadow=True,
+        label=False  # Hide the "N" text
     )
 
 
@@ -237,7 +256,7 @@ def create_consistent_map(title, boundary_gdf=None, bounds=None):
 
     add_basemap(ax)
 
-    add_north_arrow(ax)
+    add_scale_bar_and_north_arrow(ax)
 
     if boundary_gdf is not None:
         add_boundary_outline(ax, boundary_gdf)
@@ -606,7 +625,7 @@ area_total_peligro_ha = float(round(peligro_areas['area_ha'].sum(), 1))
 porcentaje_total_peligro = float(round(peligro_areas['porcentaje'].sum(), 1))
 ```
 
-Hay un total de `{python} format_number(total_barrios)` barrios populares en el Partido de La Plata, que representan `{python} format_number(total_familias)` familias. Estos barrios ocupan `{python} format_number(area_barrios_ha)` hectáreas del Partido de La Plata, o `{python} porcentaje_cobertura` por ciento del partido. El análisis de edificaciones revela un total de `{python} format_number(total_buildings_la_plata)` edificaciones en La Plata, de las cuales `{python} format_number(total_buildings_in_barrios)` se encuentran en barrios populares (`{python} buildings_percentage`% del total). En cuanto a las zonas de peligro de inundación, el territorio incluye `{python} format_number(int(peligro_alta_ha))` hectáreas de peligro alto (`{python} peligro_alta_pct`% del partido), `{python} format_number(int(peligro_media_ha))` hectáreas de peligro medio (`{python} peligro_media_pct`% del partido), y `{python} format_number(int(peligro_baja_ha))` hectáreas de peligro bajo (`{python} peligro_baja_pct`% del partido). El área total cubierta por zonas de peligro es de `{python} format_number(int(area_total_peligro_ha))` hectáreas, representando `{python} porcentaje_total_peligro`% del partido.
+Hay un total de `{python} format_number(total_barrios)` [barrios populares en el Partido de La Plata](https://lookerstudio.google.com/u/0/reporting/0a127285-4dd0-43b2-b7b2-98390bfd567f/page/klATC), que representan `{python} format_number(total_familias)` familias y 30,753 edificios. Estos barrios ocupan `{python} format_number(area_barrios_ha)` hectáreas del Partido de La Plata, o `{python} porcentaje_cobertura` por ciento del partido. El análisis de edificios revela un total de `{python} format_number(total_buildings_la_plata)` edificios en La Plata, de los cuales `{python} format_number(total_buildings_in_barrios)` se encuentran en barrios populares (`{python} buildings_percentage`% del total). En cuanto a las zonas de peligro de inundación, el territorio incluye `{python} format_number(int(peligro_alta_ha))` hectáreas de peligro alto (`{python} peligro_alta_pct`% del partido), `{python} format_number(int(peligro_media_ha))` hectáreas de peligro medio (`{python} peligro_media_pct`% del partido), y `{python} format_number(int(peligro_baja_ha))` hectáreas de peligro bajo (`{python} peligro_baja_pct`% del partido). El área total cubierta por zonas de peligro es de `{python} format_number(int(area_total_peligro_ha))` hectáreas, representando `{python} porcentaje_total_peligro`% del partido.
 
 ```{python}
 # | cache: true
@@ -652,6 +671,7 @@ peligro_clipped_3857.plot(
     cmap="plasma",
     alpha=0.75,
     legend=True,
+    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
 
@@ -681,7 +701,11 @@ El segundo problema radica en que los propios datos del RENABAP, según nuestro 
 
 Esta es una de las grandes ventajas de las huellas de edificios globales derivadas de satélite que han surgido en los últimos años de Google-Microsoft-OSM, entre otros. Uno de los objetivos principales de este análisis es demostrar que estos datos de huellas de edificios pueden utilizarse para estimar la exposición de manera más precisa, tanto en términos de precisión metodológica como en términos de mejora sobre conjuntos de datos nacionales existentes como el RENABAP.
 
-Por tanto, en este estudio utilizamos el número de edificios que intersectan con las diferentes zonas de peligro de inundación como indicador de exposición, asumiendo que un edificio equivale aproximadamente a una familia, supuesto que el propio RENABAP asume en sus datos.
+Por tanto, en este estudio utilizamos el número de edificios que intersectan con las diferentes zonas de peligro de inundación como medida de exposición. Hemos encontrado que los datos del RENABAP presentan limitaciones significativas, como se demuestra en nuestro análisis. Los datos del RENABAP para los asentamientos informales de La Plata estiman aproximadamente 1.1 familias por edificio. Para quienes estén interesados en entender el número de familias que probablemente estén expuestas, pueden multiplicar el número de edificios por 1.1 y obtener una estimación razonable.
+
+Sin embargo, dado que no conocemos exactamente cuántas familias viven en cada edificio y que los edificios pueden variar en tamaño, no realizamos esta conversión. En su lugar, medimos la exposición puramente en términos del número comparativo de edificios, lo cual es suficiente para demostrar que los datos del RENABAP están considerablemente desactualizados, pero también para proporcionarnos estimaciones razonablemente buenas de exposición.
+
+Además, basándonos en conversaciones con planificadores tanto del ámbito académico como del gobierno municipal, nos sentimos razonablemente seguros al asumir que la mayoría o la totalidad de los edificios dentro de los límites de un asentamiento informal son probablemente edificios residenciales de uno a dos pisos como máximo. Por tanto, existe una correspondencia muy estrecha entre el número de edificios observados y el número de familias que viven en un asentamiento informal. Esto no será el caso en todos los asentamientos informales y ciertamente no es el caso en asentamientos formales densos. En este contexto particular, nos sentimos cómodos haciendo esta suposición por las razones expuestas.
 
 ```{python}
 ## Análisis de exposición: edificios por barrio y cuenca por zona de peligro
@@ -756,7 +780,6 @@ resultado_exposicion_barrio = final_exposure_barrio[
         "id_renabap",
         "nombre_barrio",
         "PELIGROSID",
-        "fam_expuestas",
         "edificios_expuestos",
     ]
 ].rename(columns={"PELIGROSID": "peligrosidad"})
@@ -833,7 +856,7 @@ final_exposure_cuenca["fam_expuestas"] = (
 )
 
 resultado_exposicion_cuenca = final_exposure_cuenca[
-    ["Cuenca", "PELIGROSID", "fam_expuestas", "edificios_expuestos"]
+    ["Cuenca", "PELIGROSID", "edificios_expuestos"]
 ].rename(columns={"PELIGROSID": "peligrosidad"})
 
 # === ANÁLISIS POR EJE ===
@@ -880,13 +903,15 @@ final_exposure_eje["fam_expuestas"] = (
 )
 
 resultado_exposicion_eje = final_exposure_eje[
-    ["eje", "PELIGROSID", "fam_expuestas", "edificios_expuestos"]
+    ["eje", "PELIGROSID", "edificios_expuestos"]
 ].rename(columns={"PELIGROSID": "peligrosidad"})
 ```
 
-### Análisis de las limitaciones de los datos del RENABAP
+### Limitaciones de los datos del RENABAP
 
-Observamos que los datos más recientes del RENABAP de 2023 frecuentemente y significativamente subestiman el número total de familias por asentamiento informal. Los datos de 2023 fueron basados en proyecciones derivadas del censo de 2010. Aquí comparamos estos datos con el número de huellas de edificios por asentamiento informal. Podemos asumir razonablemente que hay mínimamente una correspondencia uno a uno entre unidades de vivienda y familias, que es lo que los propios datos del RENABAP asumen. Encontramos que usando este método, los datos del RENABAP frecuentemente están desactualizados por una cantidad significativa. En promedio, subestiman el número de estructuras habitacionales por 41%, lo que equivale a aproximadamente 1.7 veces más familias por asentamiento de lo que aparecen en los datos del RENABAP.
+Los datos del RENABAP presentan limitaciones importantes que justifican el uso de huellas de edificios como alternativa más precisa. Los datos más recientes del RENABAP de 2023 subestiman significativamente el número total de familias por asentamiento informal. Estos datos se basan en proyecciones derivadas del censo de 2010, lo que ha resultado en estimaciones considerablemente desactualizadas.
+
+Nuestro análisis comparativo entre los datos del RENABAP y el conteo de huellas de edificios revela que el RENABAP subestima el número de estructuras habitacionales en un promedio del 41%. A nivel agregado, esto se traduce en aproximadamente 41,000 viviendas faltantes que no están contabilizadas en las estadísticas oficiales del RENABAP. Considerando un rango razonable de 3 a 5 personas por vivienda, esta subestimación representa entre 120,000 y 205,000 personas que podrían estar no contabilizadas en los asentamientos informales. Esta discrepancia masiva demuestra claramente las limitaciones críticas del RENABAP para la evaluación precisa de la exposición a riesgos de inundación y la planificación de políticas públicas.
 
 ```{python}
 # | label: fig-error-renabap
@@ -964,10 +989,11 @@ También podemos examinar imágenes satelitales de un asentamiento informal de m
 import matplotlib.pyplot as plt
 import geopandas as gpd
 import contextily as cx
+from matplotlib_map_utils.core.scale_bar import ScaleBar, scale_bar
+from matplotlib_map_utils.core.north_arrow import north_arrow
 
 # Filtrar para obtener solo el barrio con id_renabap 5688
 barrio_5688 = renabap_pba_intersect[renabap_pba_intersect["id_renabap"] == 5688].copy()
-
 if len(barrio_5688) == 0:
     print("No se encontró el barrio con id_renabap 5688")
 else:
@@ -975,28 +1001,22 @@ else:
     buildings_5688 = buildings_with_barrios[
         buildings_with_barrios["id_renabap"] == 5688
     ].copy()
-
     # Convertir a Web Mercator
     barrio_5688_3857 = barrio_5688.to_crs(WEB_MERCATOR_CRS)
     buildings_5688_3857 = buildings_5688.to_crs(WEB_MERCATOR_CRS)
-
     # Crear el mapa
     fig, ax = plt.subplots(figsize=(12, 10))
-
     # Configurar límites basados en el barrio
     bounds = barrio_5688_3857.total_bounds
     margin = 50  # metros
     ax.set_xlim(bounds[0] - margin, bounds[2] + margin)
     ax.set_ylim(bounds[1] - margin, bounds[3] + margin)
-
     # Agregar basemap de contextily
     cx.add_basemap(ax, crs="EPSG:3857", source=cx.providers.Esri.WorldImagery)
-
     # Plot de edificios con contorno naranja (sin fill)
     buildings_5688_3857.plot(
         ax=ax, facecolor="none", edgecolor=PLASMA_CMAP(1), linewidth=1
     )
-
     # Plot del límite del barrio con estilo consistente
     barrio_5688_3857.plot(
         ax=ax,
@@ -1006,7 +1026,35 @@ else:
         linestyle="--",
         zorder=10,
     )
-
+    
+    ScaleBar.set_size("md")
+    
+    scale_bar(ax=ax, 
+    location="upper left", 
+    style="ticks", 
+    bar={"projection":"axis",
+    "minor_type":"none",
+    "tickcolors": "white",
+    "basecolors": "white"}, 
+    labels={"style":"first_last",
+    "textcolors":["white"],
+    "stroke_width":0},
+    units={"label":"m",
+    "textcolor":"white",
+    "stroke_width":0}
+    )
+    
+    north_arrow(
+        ax,
+        location="upper right",
+        scale=0.3,  # Small size
+        rotation={"degrees": 0},
+        base={"facecolor": "none", "edgecolor": "white", "linewidth": 1},
+        fancy=True,
+        shadow=True,
+        label=False  # Hide the "N" text
+    )
+    
     # Limpiar el mapa
     barrio_nombre = barrio_5688["nombre_barrio"].iloc[0]
     ax.set_title(
@@ -1023,14 +1071,12 @@ else:
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["left"].set_visible(False)
-
     # Agregar leyenda simple
     legend_elements = [
         plt.Line2D([0], [0], color="white", linewidth=3, label="Límite del barrio"),
         plt.Line2D([0], [0], color=PLASMA_CMAP(1), linewidth=1, label="Edificaciones"),
     ]
-    ax.legend(handles=legend_elements, loc="upper right")
-
+    ax.legend(handles=legend_elements, loc="lower right", bbox_to_anchor=(1.0, 0.02))
     plt.tight_layout()
     plt.show()
 ```
@@ -1170,8 +1216,8 @@ legend2 = ax.legend(
 # Agregar el contorno de La Plata como capa superior
 add_la_plata_outline(ax)
 
-# Agregar flecha norte para consistencia
-add_north_arrow(ax)
+# Agregar escala y flecha norte para consistencia
+add_scale_bar_and_north_arrow(ax)
 
 # Limpiar el mapa - quitar bordes, ticks, etc.
 ax.set_title(
@@ -1185,13 +1231,11 @@ ax.set_axis_off()
 plt.tight_layout()
 plt.show()
 
-# | label: fig-top-barrios-peligro-alto
-# | fig-cap: "Los 25 barrios con mayor número de edificaciones expuestas a peligro alto de inundación"
+# | label: fig-top-barrios-exposicion
+# | fig-cap: "Los 10 barrios con mayor número de edificaciones expuestas a peligros de inundación"
 
-import matplotlib.pyplot as plt
-
-# Filtrar solo exposición alta y agregar por nombre de barrio (excluyendo "Sin Nombre")
-edificios_alta_por_nombre = (
+# Filtrar exposición alta y media por nombre de barrio (excluyendo "Sin Nombre")
+barrios_alta_data = (
     resultado_exposicion_barrio[
         (resultado_exposicion_barrio["peligrosidad"] == "alta")
         & (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
@@ -1200,44 +1244,52 @@ edificios_alta_por_nombre = (
     .sum()
     .reset_index()
     .sort_values("edificios_expuestos", ascending=False)
-    .head(25)
+    .head(10)
 )
+
+barrios_media_data = (
+    resultado_exposicion_barrio[
+        (resultado_exposicion_barrio["peligrosidad"] == "media")
+        & (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
+    ]
+    .groupby("nombre_barrio")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+)
+
+# Merge para tener ambos niveles
+barrios_combined = barrios_alta_data.merge(barrios_media_data, on="nombre_barrio", how="left", suffixes=("_alta", "_media"))
+barrios_combined["edificios_expuestos_media"] = barrios_combined["edificios_expuestos_media"].fillna(0)
 
 # Crear el gráfico de barras
-plt.figure(figsize=(12, 8))
-bars = plt.bar(
-    range(len(edificios_alta_por_nombre)),
-    edificios_alta_por_nombre["edificios_expuestos"],
-    color=PELIGROSIDAD_COLORS["alta"],
-    edgecolor="none",
-)
+fig, ax = plt.subplots(figsize=(12, 8))
+x = np.arange(len(barrios_combined))
+width = 0.35
 
-# Personalizar el gráfico
-plt.title(
-    "Top 25 Barrios por Edificaciones Expuestas a Peligro Alto",
-    fontsize=16,
-    fontweight="bold",
-)
-plt.xlabel("Barrios", fontsize=12)
-plt.ylabel("Edificaciones Expuestas (Peligro Alto)", fontsize=12)
-plt.xticks(
-    range(len(edificios_alta_por_nombre)),
-    edificios_alta_por_nombre["nombre_barrio"],
-    rotation=45,
-    ha="right",
-)
+bars1 = ax.bar(x - width/2, barrios_combined["edificios_expuestos_alta"], width,
+               label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
+bars2 = ax.bar(x + width/2, barrios_combined["edificios_expuestos_media"], width,
+               label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+
+ax.set_xlabel("Barrios", fontsize=12)
+ax.set_ylabel("Edificios Expuestos", fontsize=12)
+ax.set_title("Top 10 Barrios por Edificios Expuestos", fontsize=14, fontweight="bold")
+ax.set_xticks(x)
+ax.set_xticklabels(barrios_combined["nombre_barrio"], rotation=45, ha="right")
+ax.legend(loc="upper right")
 
 # Agregar valores en las barras
-for i, bar in enumerate(bars):
+for bar in bars1:
     height = bar.get_height()
-    plt.text(
-        bar.get_x() + bar.get_width() / 2.0,
-        height + 5,
-        f"{int(height)}",
-        ha="center",
-        va="bottom",
-        fontsize=9,
-    )
+    if height > 0:
+        ax.text(bar.get_x() + bar.get_width()/2., height + 5, f'{int(height)}',
+                ha='center', va='bottom', fontsize=10)
+
+for bar in bars2:
+    height = bar.get_height()
+    if height > 0:
+        ax.text(bar.get_x() + bar.get_width()/2., height + 5, f'{int(height)}',
+                ha='center', va='bottom', fontsize=10)
 
 plt.tight_layout()
 plt.show()
@@ -1245,15 +1297,19 @@ plt.show()
 show(resultado_exposicion_barrio)
 ```
 
-### Exposición por cuenca
+### Exposición por cuenca y eje
+
 ```{python}
-# | label: fig-exposicion-cuencas
-# | fig-cap: "Cuencas hidrográficas ordenadas por número de edificaciones expuestas a peligro alto de inundación"
+# | layout-ncol: 2
+# | label: fig-exposicion-cuencas-ejes
+# | fig-cap: "Exposición por cuencas hidrográficas y ejes territoriales"
+# | fig-subcap:
+# |   - "Cuencas por edificaciones expuestas"
+# |   - "Ejes por edificaciones expuestas"
 
-import matplotlib.pyplot as plt
-
-# Filtrar solo exposición alta y agregar por cuenca
-edificios_alta_por_cuenca = (
+# === GRÁFICO DE CUENCAS ===
+# Filtrar exposición alta y media por cuenca
+cuenca_alta_data = (
     resultado_exposicion_cuenca[resultado_exposicion_cuenca["peligrosidad"] == "alta"]
     .groupby("Cuenca")["edificios_expuestos"]
     .sum()
@@ -1261,60 +1317,53 @@ edificios_alta_por_cuenca = (
     .sort_values("edificios_expuestos", ascending=False)
 )
 
-# Crear el gráfico de barras
-plt.figure(figsize=(12, 6))
-bars = plt.bar(
-    range(len(edificios_alta_por_cuenca)),
-    edificios_alta_por_cuenca["edificios_expuestos"],
-    color=PELIGROSIDAD_COLORS["alta"],
-    edgecolor="none",
+cuenca_media_data = (
+    resultado_exposicion_cuenca[resultado_exposicion_cuenca["peligrosidad"] == "media"]
+    .groupby("Cuenca")["edificios_expuestos"]
+    .sum()
+    .reset_index()
 )
 
-# Personalizar el gráfico
-plt.title(
-    "Top Cuencas por Edificaciones Expuestas a Peligro Alto",
-    fontsize=16,
-    fontweight="bold",
-)
-plt.xlabel("Cuencas", fontsize=12)
-plt.ylabel("Edificaciones Expuestas (Peligro Alto)", fontsize=12)
-plt.xticks(
-    range(len(edificios_alta_por_cuenca)),
-    edificios_alta_por_cuenca["Cuenca"],
-    rotation=45,
-    ha="right",
-)
+# Merge para tener ambos niveles
+cuenca_combined = cuenca_alta_data.merge(cuenca_media_data, on="Cuenca", how="left", suffixes=("_alta", "_media"))
+cuenca_combined["edificios_expuestos_media"] = cuenca_combined["edificios_expuestos_media"].fillna(0)
+
+# Crear gráfico de cuencas
+fig1, ax1 = plt.subplots(figsize=(10, 8))
+x = np.arange(len(cuenca_combined))
+width = 0.35
+
+bars1 = ax1.bar(x - width/2, cuenca_combined["edificios_expuestos_alta"], width, 
+                label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
+bars2 = ax1.bar(x + width/2, cuenca_combined["edificios_expuestos_media"], width,
+                label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+
+ax1.set_xlabel("Cuencas", fontsize=12)
+ax1.set_ylabel("Edificios Expuestos", fontsize=12)
+ax1.set_title("Cuencas por Edificaciones Expuestas", fontsize=14, fontweight="bold")
+ax1.set_xticks(x)
+ax1.set_xticklabels(cuenca_combined["Cuenca"], rotation=45, ha="right")
+ax1.legend(loc="upper right")
 
 # Agregar valores en las barras
-for i, bar in enumerate(bars):
+for bar in bars1:
     height = bar.get_height()
-    plt.text(
-        bar.get_x() + bar.get_width() / 2.0,
-        height + 10,
-        f"{int(height)}",
-        ha="center",
-        va="bottom",
-        fontsize=10,
-    )
+    if height > 0:
+        ax1.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}',
+                ha='center', va='bottom', fontsize=10)
+
+for bar in bars2:
+    height = bar.get_height()
+    if height > 0:
+        ax1.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}',
+                ha='center', va='bottom', fontsize=10)
 
 plt.tight_layout()
 plt.show()
 
-
-show(resultado_exposicion_cuenca)
-
-```
-
-### Exposición por eje
-
-```{python}
-# | label: fig-exposicion-ejes
-# | fig-cap: "Ejes territoriales ordenados por número de edificaciones expuestas a peligro alto de inundación"
-
-import matplotlib.pyplot as plt
-
-# Filtrar solo exposición alta y agregar por eje
-edificios_alta_por_eje = (
+# === GRÁFICO DE EJES ===
+# Filtrar exposición alta y media por eje
+eje_alta_data = (
     resultado_exposicion_eje[resultado_exposicion_eje["peligrosidad"] == "alta"]
     .groupby("eje")["edificios_expuestos"]
     .sum()
@@ -1322,46 +1371,49 @@ edificios_alta_por_eje = (
     .sort_values("edificios_expuestos", ascending=False)
 )
 
-# Crear el gráfico de barras
-plt.figure(figsize=(10, 6))
-bars = plt.bar(
-    range(len(edificios_alta_por_eje)),
-    edificios_alta_por_eje["edificios_expuestos"],
-    color=PELIGROSIDAD_COLORS["alta"],
-    edgecolor="none",
+eje_media_data = (
+    resultado_exposicion_eje[resultado_exposicion_eje["peligrosidad"] == "media"]
+    .groupby("eje")["edificios_expuestos"]
+    .sum()
+    .reset_index()
 )
 
-# Personalizar el gráfico
-plt.title(
-    "Ejes por Edificaciones Expuestas a Peligro Alto",
-    fontsize=16,
-    fontweight="bold",
-)
-plt.xlabel("Ejes", fontsize=12)
-plt.ylabel("Edificaciones Expuestas (Peligro Alto)", fontsize=12)
-plt.xticks(
-    range(len(edificios_alta_por_eje)),
-    edificios_alta_por_eje["eje"],
-    rotation=45,
-    ha="right",
-)
+# Merge para tener ambos niveles
+eje_combined = eje_alta_data.merge(eje_media_data, on="eje", how="left", suffixes=("_alta", "_media"))
+eje_combined["edificios_expuestos_media"] = eje_combined["edificios_expuestos_media"].fillna(0)
+
+# Crear gráfico de ejes
+fig2, ax2 = plt.subplots(figsize=(10, 8))
+x = np.arange(len(eje_combined))
+width = 0.35
+
+bars1 = ax2.bar(x - width/2, eje_combined["edificios_expuestos_alta"], width,
+                label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
+bars2 = ax2.bar(x + width/2, eje_combined["edificios_expuestos_media"], width,
+                label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+
+ax2.set_xlabel("Ejes", fontsize=12)
+ax2.set_ylabel("Edificios Expuestos", fontsize=12)
+ax2.set_title("Ejes por Edificaciones Expuestas", fontsize=14, fontweight="bold")
+ax2.set_xticks(x)
+ax2.set_xticklabels(eje_combined["eje"], rotation=45, ha="right")
+ax2.legend(loc="upper right")
 
 # Agregar valores en las barras
-for i, bar in enumerate(bars):
+for bar in bars1:
     height = bar.get_height()
-    plt.text(
-        bar.get_x() + bar.get_width() / 2.0,
-        height + 10,
-        f"{int(height)}",
-        ha="center",
-        va="bottom",
-        fontsize=10,
-    )
+    if height > 0:
+        ax2.text(bar.get_x() + bar.get_width()/2., height + 10, f'{int(height)}',
+                ha='center', va='bottom', fontsize=10)
+
+for bar in bars2:
+    height = bar.get_height()
+    if height > 0:
+        ax2.text(bar.get_x() + bar.get_width()/2., height + 10, f'{int(height)}',
+                ha='center', va='bottom', fontsize=10)
 
 plt.tight_layout()
 plt.show()
-
-show(resultado_exposicion_eje)
 ```
 
 ## Comparativa de periodos de retorno
@@ -1400,6 +1452,7 @@ peligro_pmp_maldonado_3857.plot(
     cmap="plasma",
     alpha=0.75,
     legend=True,
+    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
 plt.tight_layout()
@@ -1427,6 +1480,7 @@ pelig_100_maldonado_clipped_3857.plot(
     cmap="plasma",
     alpha=0.75,
     legend=True,
+    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
 plt.tight_layout()
@@ -1454,6 +1508,7 @@ pelig_25_maldonado_clipped_3857.plot(
     cmap="plasma",
     alpha=0.75,
     legend=True,
+    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
 plt.tight_layout()
@@ -1505,33 +1560,32 @@ x = np.arange(len(escenarios))
 width = 0.35
 
 fig, ax = plt.subplots(figsize=(10, 6))
-bars1 = ax.bar(x - width/2, alta_values, width, label='Peligro Alto', color=PELIGROSIDAD_COLORS["alta"], alpha=0.8)
-bars2 = ax.bar(x + width/2, media_values, width, label='Peligro Medio', color=PELIGROSIDAD_COLORS["media"], alpha=0.8)
+bars1 = ax.bar(x - width/2, alta_values, width, label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
+bars2 = ax.bar(x + width/2, media_values, width, label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
 
-ax.set_xlabel('Escenario de Precipitación', fontsize=12)
-ax.set_ylabel('Edificios Expuestos', fontsize=12)
-ax.set_title('Exposición en Cuenca Maldonado por Escenario de Precipitación', fontsize=14, fontweight='bold')
+ax.set_xlabel("Escenario de Precipitación", fontsize=12)
+ax.set_ylabel("Edificios Expuestos", fontsize=12)
+ax.set_title("Exposición en Cuenca Maldonado por Escenario de Precipitación", fontsize=14, fontweight="bold")
 ax.set_xticks(x)
 ax.set_xticklabels(escenarios)
-ax.legend()
+ax.legend(loc="upper right")
 
 def add_value_labels(bars):
     for bar in bars:
         height = bar.get_height()
         if height > 0:
-            ax.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+            ax.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}', ha='center', va='bottom', fontsize=10)
 
 add_value_labels(bars1)
 add_value_labels(bars2)
-
-ax.grid(True, axis='y', alpha=0.3)
-ax.set_axisbelow(True)
 plt.tight_layout()
 plt.show()
 ```
 
 ## Conclusiones
 
-Los datos de huellas de edificios nos permiten realizar evaluaciones significativamente más precisas de la exposición poblacional en asentamientos informales en todo el partido. Este análisis identifica aproximadamente 23,000 edificaciones adicionales que creemos están presentes, equivalentes a potencialmente alrededor de 100,000 personas adicionales que no han sido mapeadas en los datos del RENABAP. Por tanto, representan un recurso realmente importante para la planificación de gestión de riesgo.
+Los datos de huellas de edificios nos permiten realizar evaluaciones significativamente más precisas de la exposición en asentamientos informales en todo el partido y revelan una subestimación crítica en los datos oficiales. Este análisis identifica aproximadamente 41,000 viviendas faltantes que no están contabilizadas en los datos del RENABAP, lo que representa potencialmente entre 120,000 y 205,000 personas no contabilizadas en los asentamientos informales (usando un rango razonable de 3 a 5 personas por vivienda). Esta discrepancia tiene implicaciones profundas para la planificación de gestión de riesgo y la asignación de recursos.
 
-Encontramos que Villa Montoro contiene el mayor número de edificaciones y, por tanto, población expuesta a peligro alto con 555 edificaciones, seguido por La Palmeira con 341, La Esperanza con 324, La Isla con 304, y Toba con 299. La Cuenca Arroyo del Gato presenta el mayor número de población expuesta con 2,662 edificaciones, seguida por la Cuenca A° Maldonado con 1,000. Lo mismo es cierto para los ejes, donde el central tiene 2,662 y el sudoeste tiene 1,000, correspondiendo exactamente a estas cifras.
+Nuestros resultados muestran que Villa Montoro presenta el mayor número de edificios expuestos a peligro alto con 555 edificios, seguido por La Palmeira con 341, La Esperanza con 324, La Isla con 304, y Toba con 299. A nivel de cuencas hidrográficas, la Cuenca Arroyo del Gato concentra la mayor exposición con 2,662 edificios expuestos a peligro alto, seguida por la Cuenca A° Maldonado con 1,000. En términos de ejes territoriales, el central presenta 2,662 edificios expuestos y el sudoeste 1,000.
+
+Este enfoque basado en edificios no solo proporciona estimaciones más precisas y actualizadas que los métodos tradicionales de interpolación areal, sino que también demuestra la necesidad urgente de actualizar los registros oficiales de asentamientos informales. Los datos globales de huellas de edificios representan una herramienta esencial para comprender la verdadera magnitud de la población en riesgo y para la planificación efectiva de políticas de reducción de riesgo de inundación.
