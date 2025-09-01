@@ -9,7 +9,7 @@ format:
 
 ## Resumen
 
-Este documento evalúa dos métricas topográficas simples para el mapeo de peligro de inundación: el Índice de Humedad Topográfica (TWI) y la Altura Sobre Drenaje Más Cercano (HAND). Utilizando el Partido de La Plata como caso de estudio, desarrollamos ambos índices mediante metodologías consolidadas con datos de elevación FABDEM de acceso libre y las bibliotecas pysheds y xDEM. Los resultados se contrastan con modelado hidrológico oficial disponible de la Facultad de Ingeniería como punto de comparación, evidenciando que tanto el TWI como el HAND representan alternativas viables para contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible. Ambos enfoques, respaldados científicamente pero con limitaciones reconocidas, constituyen soluciones prácticas para evaluaciones preliminares de riesgo de inundación a escala municipal cuando se carece de información más detallada.
+Este documento evalúa dos métricas topográficas simples para el mapeo de peligro de inundación: el Índice de Humedad Topográfica (TWI) y la Altura Sobre Drenaje Más Cercano (HAND). Utilizando el Partido de La Plata como caso de estudio, desarrollamos ambos índices mediante metodologías consolidadas con datos de elevación FABDEM de acceso libre y las bibliotecas `pysheds` y `xDEM`. Los resultados se contrastan con modelado hidrológico oficial disponible de la Facultad de Ingeniería como punto de comparación, evidenciando que tanto el TWI como el HAND representan alternativas viables para contextos con limitaciones de datos donde no existe modelado hidrológico avanzado disponible. Ambos enfoques, respaldados científicamente pero con limitaciones reconocidas, constituyen soluciones prácticas para evaluaciones preliminares de riesgo de inundación a escala municipal cuando se carece de información más detallada.
 
 ## Introducción
 
@@ -213,51 +213,50 @@ Calculamos la pendiente, otra variable necesaria para el cálculo del índice de
 ```{python}
 with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp_file:
     ruta_temporal = tmp_file.name
+    
+    dem_reproyectado = dem_recortado.rio.reproject(
+        CRS_ARGENTINA,
+        resolution=30,
+    )
+    dem_reproyectado.rio.to_raster(ruta_temporal)
+    dem = xdem.DEM(ruta_temporal)
+    
+    atributos = xdem.terrain.get_terrain_attribute(
+        dem.data,
+        resolution=dem.res,
+        attribute=[
+            "hillshade",
+            "slope", 
+            "aspect",
+            "curvature",
+            "terrain_ruggedness_index",
+            "rugosity",
+        ],
+    )
+    
+    datos_pendiente = atributos[1]
+    
+    # Fix coordinate generation - y should go from top to bottom
+    coordenadas_y = np.arange(dem.bounds.top, dem.bounds.bottom, -dem.res[1])
+    coordenadas_x = np.arange(dem.bounds.left, dem.bounds.right, dem.res[0])
+    
+    pendiente_xarray = xr.DataArray(
+        datos_pendiente,
+        coords={"y": coordenadas_y, "x": coordenadas_x},
+        dims=["y", "x"],
+        attrs={"crs": dem.crs, "units": "degrees", "long_name": "slope"},
+    )
 
-# Reproyectar con resolución y proyeccion explícita igual
-dem_reproyectado = dem_recortado.rio.reproject(
-    CRS_ARGENTINA,
-    resolution=30,
-)
-
-dem_reproyectado.rio.to_raster(ruta_temporal)
-dem = xdem.DEM(ruta_temporal)
-
-atributos = xdem.terrain.get_terrain_attribute(
-    dem.data,
-    resolution=dem.res,
-    attribute=[
-        "hillshade",
-        "slope",
-        "aspect",
-        "curvature",
-        "terrain_ruggedness_index",
-        "rugosity",
-    ],
-)
-
-datos_pendiente = atributos[1]
-
-coordenadas_y = np.arange(dem.bounds.bottom, dem.bounds.top, dem.res[1])
-coordenadas_x = np.arange(dem.bounds.left, dem.bounds.right, dem.res[0])
-
-pendiente_xarray = xr.DataArray(
-    datos_pendiente,
-    coords={"y": coordenadas_y, "x": coordenadas_x},
-    dims=["y", "x"],
-    attrs={"crs": dem.crs, "units": "degrees", "long_name": "slope"},
-)
-
-pendiente_xarray.plot(cmap=CMAP)
-ax = plt.gca()
-la_plata.plot(
+    pendiente_xarray.plot(cmap=CMAP)
+    ax = plt.gca()
+    la_plata.plot(
     ax=ax,
     facecolor="none",
     edgecolor="black",
     linewidth=0.5,
     linestyle="--",
     zorder=5,
-)
+    )
 ```
 
 ### Calcular TWI
@@ -448,13 +447,28 @@ Para la comparación, presentamos el TWI en su forma continua, permitiendo visua
 Un aspecto importante a considerar es que existen diferencias metodológicas fundamentales entre estos enfoques. El modelado de ingeniería toma en cuenta la infraestructura urbana, especialmente el sistema de calles de la ciudad y elementos del drenaje urbano, mientras que tanto el TWI como HAND se basan únicamente en la topografía del terreno.
 
 ```{python}
+# | cache: true
+# | layout-ncol: 3
+# | label: fig-comparativa-twi-hand
+# | fig-cap: "Comparativa de TWI, HAND y modelado FLO-2D"
+# | fig-subcap:
+# |   - "Índice de Humedad Topográfica (TWI)"
+# |   - "Altura Sobre Drenaje Más Cercano (HAND)"
+# |   - "Modelado FLO-2D (Peligrosidad)"
+# | lightbox:
+# |   group: comparativa-twi-hand
+
 # Preparar datos para el mapa
 ruta_peligro = RUTA_DATOS / "peligro_raster_10m.tif"
 peligro_xarray = rioxarray.open_rasterio(ruta_peligro)
 
-la_plata_centroid = la_plata.to_crs(CRS_WGS84).centroid.iloc[0]
-center_lat = la_plata_centroid.y
-center_lon = la_plata_centroid.x
+# Crear clases de quantiles para TWI usando los breaks calculados
+twi_quantile_classes = xr.where(twi_masked <= twi_quantiles[0], 1,
+                               xr.where(twi_masked <= twi_quantiles[1], 2,
+                                       xr.where(twi_masked <= twi_quantiles[2], 3, 4)))
+twi_quantile_classes = xr.where(~twi_masked.isnull(), twi_quantile_classes, np.nan)
+twi_quantile_classes = twi_quantile_classes.rio.write_crs(twi_masked.rio.crs)
+twi_quantile_classes = twi_quantile_classes.rio.write_transform(twi_masked.rio.transform())
 
 # Crear clases de quantiles para HAND usando los breaks calculados
 hand_quantile_classes = xr.where(hand_double_sqrt_masked <= hand_double_sqrt_quantiles[0], 1,
@@ -468,28 +482,73 @@ hand_quantile_classes = hand_quantile_classes.rio.write_transform(hand_double_sq
 peligro_2d = peligro_xarray.sel(band=1).astype('float32')
 peligro_clipped = peligro_2d.rio.clip(la_plata.geometry, la_plata.crs)
 
-# Crear mapa
-m = leafmap.Map(center=[center_lat, center_lon], zoom=9)
-m.add_tile_layer(
-    url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    name="Google Satellite",
-    attribution="Google",
+# Definir función para crear mapas consistentes
+def create_consistent_map(title, boundary_gdf, bounds=None):
+    """Create a map with consistent styling and basemap."""
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    if bounds is not None:
+        ax.set_xlim(bounds[0], bounds[2])
+        ax.set_ylim(bounds[1], bounds[3])
+    
+    if boundary_gdf is not None:
+        boundary_gdf.plot(
+            ax=ax,
+            facecolor="none",
+            edgecolor="black",
+            linewidth=0.5,
+            linestyle="--",
+            zorder=5,
+        )
+    
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+    ax.set_axis_off()
+    
+    return fig, ax
+
+# Obtener bounds comunes para todos los mapas
+common_bounds = la_plata.to_crs(CRS_ARGENTINA).total_bounds
+
+# Mapa 1: TWI
+fig1, ax1 = create_consistent_map("Índice de Humedad Topográfica (TWI)", boundary_gdf=la_plata, bounds=common_bounds)
+
+twi_masked_3857 = twi_masked.rio.reproject("EPSG:3857")
+twi_masked_3857.plot(ax=ax1, cmap=CMAP, add_colorbar=True, cbar_kwargs={"label": "Índice de Humedad Topográfica"})
+
+plt.tight_layout()
+plt.show()
+
+# Mapa 2: HAND
+fig2, ax2 = create_consistent_map("Altura Sobre Drenaje Más Cercano (HAND)", boundary_gdf=la_plata, bounds=common_bounds)
+
+hand_quantile_classes_3857 = hand_quantile_classes.rio.reproject("EPSG:3857")
+hand_quantile_classes_3857.plot(
+    ax=ax2,
+    cmap=CMAP + "_r",
+    add_colorbar=True,
+    cbar_kwargs={
+        "label": "HAND (Cuantiles)",
+        "ticks": [1.5, 2.5, 3.5, 4.5],
+        "format": lambda x, pos: f"Q{int(x)}"
+    }
 )
 
-# Agregar capas
-m.add_raster(twi_masked, colormap=CMAP, layer_name="TWI", nodata=np.nan)
-m.add_raster(hand_quantile_classes, colormap=CMAP + "_r", layer_name="HAND (Cuantiles)", nodata=np.nan)
-m.add_raster(peligro_clipped, colormap=CMAP, layer_name="Peligrosidad", nodata=peligro_clipped.rio.nodata)
+plt.tight_layout()
+plt.show()
 
-la_plata_geojson = la_plata.to_crs(CRS_WGS84).__geo_interface__
-m.add_geojson(
-    la_plata_geojson,
-    layer_name="Partido de La Plata",
-    style={"color": "black", "weight": 2, "fillOpacity": 0},
+# Mapa 3: Peligrosidad FLO-2D
+fig3, ax3 = create_consistent_map("Modelado FLO-2D (Peligrosidad)", boundary_gdf=la_plata, bounds=common_bounds)
+
+peligro_clipped_3857 = peligro_clipped.rio.reproject("EPSG:3857")
+peligro_clipped_3857.plot(
+    ax=ax3,
+    cmap=CMAP,
+    add_colorbar=True,
+    cbar_kwargs={"label": "Nivel de Peligrosidad"}
 )
 
-m.add_layer_control()
-m
+plt.tight_layout()
+plt.show()
 ```
 
 ## Conclusión
