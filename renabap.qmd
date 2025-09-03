@@ -5,17 +5,22 @@ subtitle: "Análisis de la exposición poblacional a peligros de inundación en 
 
 ## Resumen ejecutivo
 
-Este análisis utiliza datos globales abiertos de huellas de edificios para lograr una estimación más precisa de la exposición a peligros de inundación en asentamientos informales en La Plata. Este método mejora significativamente las estimaciones previas utilizando datos del RENABAP y revela una subestimación dramática en los datos oficiales. Encontramos que los datos del RENABAP subestiman el número de edificios en un promedio del 41%, lo que equivale a aproximadamente 41,000 viviendas faltantes que no están contabilizadas en las estadísticas oficiales. Tomando un promedio razonable de 3 a 5 personas por vivienda, esto representa entre 120,000 y 205,000 personas que podrían estar no contabilizadas en los asentamientos informales. El conjunto de datos globales de huellas de edificios representa, por tanto, una herramienta crítica para comprender la verdadera magnitud de la exposición a peligros de inundación en La Plata.
+Este análisis utiliza el conjunto de datos global de huellas de edificios para mejorar las estimaciones de exposición a peligros de inundación en asentamientos informales en La Plata.
 
-Encontramos que Villa Montoro tiene el mayor número de edificios expuestos a peligro alto bajo la precipitación máxima probable, con 555 edificios. La Cuenca Arroyo del Gato presenta el mayor número total de edificios expuestos con 2,662, seguida por la Cuenca Maldonado con 1,000. Además, un análisis comparativo de exposición bajo diferentes períodos de retorno para la Cuenca Maldonado revela diferencias significativas en la exposición estimada dependiendo del período de retorno considerado. Mientras que la precipitación máxima probable estima un total de 1,000 edificios expuestos para la cuenca, el período de retorno de 25 años estima 77 edificios expuestos y el período de retorno de 100 años estima 141 edificios expuestos a peligro alto, planteando así interrogantes sobre cuál de estos es más útil para iniciar el proceso de reubicación de viviendas en áreas de alto peligro en asentamientos informales.
+⚠️ **Los datos del RENABAP subestiman dramáticamente la población en asentamientos informales**, con aproximadamente **41,575 viviendas faltantes** no contabilizadas en las estadísticas oficiales. Esto representa entre 125,000 y 208,000 personas no contabilizadas, lo cual es fundamental para comprender la verdadera magnitud de la exposición a inundaciones en La Plata.
+
+📊 Encontramos que **17,014 edificiones están expuestas a peligros de inundación (23.9% del total)**, con 6,112 en zonas de peligro alto y 10,902 en peligro medio. Villa Montoro presenta la mayor exposición con 669 edificios en peligro alto (21.7% del barrio), seguido por La Esperanza con 440 edificiones (16.3%), Las Palmeras con 417 (33.7%), Toba con 335 (67.7%), y La Isla con 320 edificiones (96.4%). A nivel de cuencas, la Cuenca Arroyo del Gato concentra la mayor exposición con 7,943 edificios expuestos.
+
+🔄 El análisis de diferentes períodos de retorno para la Cuenca Maldonado revela que **la elección del período genera diferencias significativas en las estimaciones de exposición**, siendo crucial para determinar qué áreas priorizar para la reubicación de residentes en asentamientos informales.
+
+- [📥 Click aquí para descargar los datos de exposición de edificios a nivel de barrio](https://arg-fulbright-data.s3.us-east-2.amazonaws.com/renabap/exposicion-barrio-la-plata-03-09-2025.csv)
+- [📥 Click aquí para descargar los datos de exposición de edificios a nivel de cuenca y eje](https://arg-fulbright-data.s3.us-east-2.amazonaws.com/renabap/exposicion-cuenca-la-plata-03-09-2025.csv)
 
 ## Objetivos
 
 Este proyecto tiene como objetivo principal mejorar el mapeo de la exposición a peligros de inundación en asentamientos informales del Partido de La Plata. El análisis se realiza específicamente con el propósito de preparar un plan para la reubicación gradual de las estructuras, viviendas o familias en mayor riesgo dentro de estos asentamientos informales hacia lugares más seguros.
 
-El trabajo busca cuantificar la exposición a peligros de inundación en asentamientos informales como herramienta para la toma de decisiones a nivel municipal, desarrollando metodologías de análisis espacial que permitan identificar las áreas y poblaciones de mayor riesgo. Asimismo, se propone proporcionar información técnica que ayude a mitigar el riesgo de inundación en asentamientos informales y obtener estimaciones más precisas de la población expuesta utilizando datos de huellas de edificios, complementando las limitaciones conocidas de los datos del RENABAP.
-
-Un objetivo adicional de este análisis es obtener estimaciones más precisas de exposición utilizando datos abiertos de huellas de edificios en lugar de depender únicamente de los datos del RENABAP. Los últimos datos del RENABAP fueron publicados en 2023 y están basados en proyecciones derivadas del censo de 2010, por lo que no se espera que sean especialmente precisos para las condiciones actuales.
+El trabajo busca cuantificar la exposición a peligros de inundación en asentamientos informales como herramienta para la toma de decisiones a nivel municipal, desarrollando metodologías de análisis espacial que permitan identificar las áreas y poblaciones de mayor riesgo. Asimismo, se propone proporcionar información técnica que ayude a mitigar el riesgo de inundación en asentamientos informales y obtener estimaciones más precisas de la población expuesta utilizando datos de huellas de edificios, complementando las limitaciones significativas de los datos del RENABAP que se analizan en detalle en este estudio.
 
 ```{python}
 import matplotlib.pyplot as plt
@@ -281,14 +286,14 @@ settle_hazard_cuencas = gpd.overlay(
 
 El Registro Nacional de Barrios Populares (RENABAP) es coordinado por la Subsecretaría de Integración Socio Urbana y sistematiza la información sobre villas y asentamientos informales en Argentina. El registro incluye estimaciones de población, delimitaciones geográficas y datos sociodemográficos obtenidos a través de relevamientos territoriales realizados desde 2016 por equipos conformados por organizaciones sociales y vecinos de los barrios.
 
-Este relevamiento de Viviendas Familiares se realiza mediante encuestas domiciliarias en los barrios populares registrados. La metodología combina trabajo territorial con herramientas digitales como aplicaciones móviles de geolocalización, escaneo de DNI, grabación de encuestas y cartografía editable. Cada polígono barrial se subdivide en manzanas, lotes y edificaciones, y se releva una ficha por cada vivienda habitada. Los datos son validados con organismos oficiales (RENAPER, ANSES) y sometidos a control de calidad para garantizar su precisión.
-Por otro lado, las estimaciones poblacionales para la versión 2023 fueron calculadas multiplicando la cantidad de viviendas registradas en el RENABAP por el promedio de personas por vivienda y el promedio de hogares por vivienda, según los datos del Censo Nacional de Hogares Población y Vivienda INDEC 2010 correspondiente a cada barrio. Esto limita la precisión de los datos demográficos en el contexto de procesos de transformación urbana.
+Este relevamiento de Viviendas Familiares se realiza mediante encuestas domiciliarias en los barrios populares registrados. La metodología combina trabajo territorial con herramientas digitales como aplicaciones móviles de geolocalización, escaneo de DNI, grabación de encuestas y cartografía editable. Cada polígono barrial se subdivide en manzanas, lotes y edificiones, y se releva una ficha por cada vivienda habitada. Los datos son validados con organismos oficiales (RENAPER, ANSES) y sometidos a control de calidad para garantizar su precisión.
+Por otro lado, las estimaciones poblacionales para la versión 2023 fueron calculadas multiplicando la cantidad de viviendas registradas en el RENABAP por el promedio de personas por vivienda y el promedio de hogares por vivienda, según los datos del Censo Nacional de Hogares Población y Vivienda INDEC 2010 correspondiente a cada barrio. Esto limita significativamente la precisión de los datos demográficos en el contexto de procesos de transformación urbana, ya que los asentamientos informales han experimentado cambios sustanciales desde 2010. Las limitaciones críticas de estos datos se analizan en detalle en la sección correspondiente de este estudio.
 
 Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
 
 ### Peligro de inundación
 
-Los datos de peligro de inundación utilizados en este análisis fueron desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que permitió simular la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. El modelo calcula las principales variables hidráulicas (altura del agua, velocidad y caudal) a lo largo del tiempo, y a partir de estos resultados se generaron los mapas de peligrosidad que combinan el efecto de la profundidad con la velocidad de la corriente, ofreciendo un indicador más completo que los mapas tradicionales de máximas profundidades.
+Los datos de peligro de inundación utilizados en este análisis fueron desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. El modelo digital de elevación fue actualizado en 2023 para capturar mejor los patrones de drenaje y la topografía urbana de la ciudad [@etulain2025]. La información fue generada mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que permitió simular la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. El modelo calcula las principales variables hidráulicas (altura del agua, velocidad y caudal) a lo largo del tiempo, y a partir de estos resultados se generaron los mapas de peligrosidad que combinan el efecto de la profundidad con la velocidad de la corriente, ofreciendo un indicador más completo que los mapas tradicionales de máximas profundidades.
 
 ### Google-Microsoft-OSM Open Buildings
 
@@ -369,10 +374,10 @@ barrios_ambos_peligros = int(
 # Total de barrios que intersectan con cualquier nivel de peligro (sin duplicados)
 barrios_total_peligro = int(len(barrios_with_peligro["id_renabap"].unique()))
 
-# Obtener total de edificaciones en La Plata
+# Obtener total de edificiones en La Plata
 total_buildings_la_plata = len(buildings_proj)
 
-# Obtener todas las edificaciones que intersectan con los barrios (corregir warning de deprecación)
+# Obtener todas las edificiones que intersectan con los barrios (corregir warning de deprecación)
 buildings_in_barrios = buildings_proj[
     buildings_proj.geometry.intersects(renabap_pba_intersect.union_all())
 ]
@@ -382,7 +387,7 @@ viviendas_faltantes = (
     total_buildings_in_barrios - 30753
 )  # 30753 es el número oficial de RENABAP
 
-# Calcular porcentaje de edificaciones en barrios
+# Calcular porcentaje de edificiones en barrios
 buildings_percentage = float(
     round((total_buildings_in_barrios / total_buildings_la_plata) * 100, 1)
 )
@@ -431,7 +436,7 @@ porcentaje_total_peligro = float(round(peligro_areas["porcentaje"].sum(), 1))
 
 Según los datos oficiales de RENABAP, hay un total de `{python} format_number(total_familias)` familias y 30,753 edificios en `{python} format_number(total_barrios)` [barrios populares en el Partido de La Plata](https://lookerstudio.google.com/u/0/reporting/0a127285-4dd0-43b2-b7b2-98390bfd567f/page/klATC). Sin embargo, estos datos fueron creados basándose en proyecciones del Censo Argentino de 2010 hacia 2023. Nuestro análisis de datos de huellas de edificios encuentra un total de `{python} format_number(total_buildings_in_barrios)` edificios en barrios populares en La Plata, representando aproximadamente `{python} format_number(viviendas_faltantes)` edificios adicionales que no están contabilizados en los datos oficiales.
 
-El territorio total del Partido de La Plata incluye `{python} format_number(int(peligro_alta_ha))` hectáreas de peligro alto (`{python} peligro_alta_pct`% del partido) y `{python} format_number(int(peligro_media_ha))` hectáreas de peligro medio (`{python} peligro_media_pct`% del partido). Respecto a la exposición de los barrios populares a peligros de inundación, se encontró que `{python} int(barrios_total_peligro)` barrios (`{python} round((barrios_total_peligro / total_barrios) * 100, 1)`% del total) intersectan con zonas de peligro. Específicamente, `{python} barrios_solo_alta` barrios intersectan únicamente con zonas de peligro alto, `{python} barrios_solo_media` barrios intersectan únicamente con zonas de peligro medio, y `{python} barrios_ambos_peligros` barrios presentan tanto peligro alto como medio dentro de sus límites.
+El territorio total del Partido de La Plata incluye `{python} format_number(int(peligro_alta_ha))` hectáreas de peligro alto (`{python} peligro_alta_pct`% del partido) y `{python} format_number(int(peligro_media_ha))` hectáreas de peligro medio (`{python} peligro_media_pct`% del partido). Respecto a la exposición de los barrios populares a peligros de inundación, se encontró que `{python} int(barrios_total_peligro)` barrios (`{python} float(round((barrios_total_peligro / total_barrios) * 100, 1))`% del total) intersectan con zonas de peligro. Específicamente, `{python} barrios_solo_alta` barrios intersectan únicamente con zonas de peligro alto, `{python} barrios_solo_media` barrios intersectan únicamente con zonas de peligro medio, y `{python} barrios_ambos_peligros` barrios presentan tanto peligro alto como medio dentro de sus límites.
 
 ```{python}
 # | layout-ncol: 3
@@ -505,17 +510,15 @@ plt.show()
 
 En versiones anteriores de este análisis, el trabajo se realizó mediante una interpolación areal simple del porcentaje de superposición de cada área de peligro de inundación con los asentamientos informales. Este enfoque presenta dos problemas fundamentales que este estudio busca abordar.
 
-El primer problema es que la interpolación areal es inherentemente imprecisa, ya que asume lo que se conoce como el [problema de la unidad areal modificable](https://www.sciencedirect.com/topics/earth-and-planetary-sciences/modifiable-areal-unit-problem) y presupone que la población se distribuye uniformemente en el espacio. Sin embargo, estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019]. La población, de hecho, no se distribuye uniformemente en el espacio; frecuentemente los edificios se agrupan ya sea alejándose de las zonas de peligro de inundación o concentrándose en zonas de alto peligro de inundación. Por tanto, es fundamental comprender con estimaciones más precisas dónde vive realmente la gente.
+El primer problema es que la interpolación areal es inherentemente imprecisa, ya que asume lo que se conoce como el [problema de la unidad areal modificable](https://www.sciencedirect.com/topics/earth-and-planetary-sciences/modifiable-areal-unit-problem) y presupone que la población se distribuye uniformemente en el espacio. Estudios confirman que cuando se asume distribución uniforme de población en áreas extensas (como datos de censo a nivel de sección), las estimaciones de exposición a inundaciones son inexactas, requiriendo datos de mayor resolución que no asuman distribución uniforme [@smith2019]. La población, de hecho, no se distribuye uniformemente en el espacio; frecuentemente los edificios se agrupan ya sea alejándose de las zonas de peligro de inundación o concentrándose en zonas de alto peligro de inundación. Por tanto, es fundamental comprender con estimaciones más precisas dónde vive realmente la gente.
 
-El segundo problema radica en que los propios datos del RENABAP, según nuestro análisis aquí presentado, parecen contar dramáticamente de forma incorrecta, frecuentemente por un factor de dos o más, el número de familias que aparentemente viven en un asentamiento informal basándose en el número de edificaciones. Esto probablemente se debe a errores de proyección acumulados a lo largo del tiempo y a la dificultad de mantener actualizados los datos de asentamientos informales.
+El segundo problema radica en que los propios datos del RENABAP, según nuestro análisis aquí presentado, parecen contar dramáticamente de forma incorrecta, frecuentemente por un factor de dos o más, el número de familias que aparentemente viven en un asentamiento informal basándose en el número de edificiones. Esto probablemente se debe a errores de proyección acumulados a lo largo del tiempo y a la dificultad de mantener actualizados los datos de asentamientos informales.
 
 Esta es una de las grandes ventajas de las huellas de edificios globales derivadas de satélite que han surgido en los últimos años de Google-Microsoft-OSM, entre otros. Uno de los objetivos principales de este análisis es demostrar que estos datos de huellas de edificios pueden utilizarse para estimar la exposición de manera más precisa, tanto en términos de precisión metodológica como en términos de mejora sobre conjuntos de datos nacionales existentes como el RENABAP.
 
-Por tanto, en este estudio utilizamos el número de edificios que intersectan con las diferentes zonas de peligro de inundación como medida de exposición. Hemos encontrado que los datos del RENABAP presentan limitaciones significativas, como se demuestra en nuestro análisis. Los datos del RENABAP para los asentamientos informales de La Plata estiman aproximadamente 1.1 familias por edificio. Para quienes estén interesados en entender el número de familias que probablemente estén expuestas, pueden multiplicar el número de edificios por 1.1 y obtener una estimación razonable.
+Por tanto, en este estudio utilizamos el número de edificios que intersectan con las diferentes zonas de peligro de inundación como medida de exposición. Aunque los datos del RENABAP estiman aproximadamente 1.1 familias por edificio, medimos la exposición en términos del número comparativo de edificios, lo cual es suficiente para demostrar las limitaciones del RENABAP y proporcionar estimaciones razonablemente buenas de exposición.
 
-Sin embargo, dado que no conocemos exactamente cuántas familias viven en cada edificio y que los edificios pueden variar en tamaño, no realizamos esta conversión. En su lugar, medimos la exposición puramente en términos del número comparativo de edificios, lo cual es suficiente para demostrar que los datos del RENABAP están considerablemente desactualizados, pero también para proporcionarnos estimaciones razonablemente buenas de exposición.
-
-Además, basándonos en conversaciones con planificadores tanto del ámbito académico como del gobierno municipal, nos sentimos razonablemente seguros al asumir que la mayoría o la totalidad de los edificios dentro de los límites de un asentamiento informal son probablemente edificios residenciales de uno a dos pisos como máximo. Por tanto, existe una correspondencia muy estrecha entre el número de edificios observados y el número de familias que viven en un asentamiento informal. Esto no será el caso en todos los asentamientos informales y ciertamente no es el caso en asentamientos formales densos. En este contexto particular, nos sentimos cómodos haciendo esta suposición por las razones expuestas.
+Basándonos en conversaciones con planificadores académicos y municipales, asumimos que la mayoría de edificios en asentamientos informales son residenciales de uno a dos pisos, creando una correspondencia estrecha entre número de edificios y familias. Esta suposición es válida para este contexto específico, aunque no aplicaría a asentamientos formales densos.
 
 ```{python}
 
@@ -860,7 +863,7 @@ También podemos examinar imágenes satelitales de un asentamiento informal de m
 
 ```{python}
 # | label: fig-ejemplo-barrio
-# | fig-cap: "Ejemplo de discrepancia en los datos del RENABAP: el barrio Los Pinos con límites oficiales y edificaciones detectadas"
+# | fig-cap: "Ejemplo de discrepancia en los datos del RENABAP: el barrio Los Pinos con límites oficiales y edificiones detectadas"
 
 # Filtrar para obtener solo el barrio con id_renabap 5688
 barrio_5688 = renabap_pba_intersect[renabap_pba_intersect["id_renabap"] == 5688].copy()
@@ -885,7 +888,7 @@ else:
     cx.add_basemap(ax, crs=WEB_MERCATOR_CRS, source=cx.providers.Esri.WorldImagery)
     # Plot de edificios con contorno naranja (sin fill)
     buildings_5688_3857.plot(
-        ax=ax, facecolor="none", edgecolor=PELIGROSIDAD_COLORS["alta"], linewidth=1
+        ax=ax, facecolor="none", edgecolor=PELIGROSIDAD_COLORS["media"], linewidth=1
     )
     # Plot del límite del barrio con estilo consistente
     barrio_5688_3857.plot(
@@ -931,7 +934,7 @@ else:
 
     # Título principal usando suptitle
     fig.suptitle(
-        f"Barrio {barrio_nombre} - Límites y Edificaciones",
+        f"Barrio {barrio_nombre} - Límites y edificiones",
         fontsize=16,
         fontweight="bold",
         y=0.98,
@@ -960,7 +963,7 @@ else:
             [0],
             color=PELIGROSIDAD_COLORS["alta"],
             linewidth=1,
-            label="Edificaciones",
+            label="edificiones",
         ),
     ]
     ax.legend(handles=legend_elements, loc="lower right", bbox_to_anchor=(1.0, 0.02))
@@ -969,7 +972,7 @@ else:
 
 ```
 
-Looking at four of the other most
+Al examinar otros ejemplos de barrios con las mayores discrepancias entre las huellas de edificios detectadas y los datos oficiales del RENABAP, observamos que frecuentemente encontramos órdenes de magnitud más edificios que familias estimadas, representando miles de familias no contabilizadas.
 
 ```{python}
 # | layout-ncol: 2
@@ -1013,7 +1016,7 @@ for i, barrio_id in enumerate(barrio_ids):
 
     # Plot de edificios con contorno naranja (sin fill)
     buildings_3857.plot(
-        ax=ax, facecolor="none", edgecolor=PELIGROSIDAD_COLORS["alta"], linewidth=1
+        ax=ax, facecolor="none", edgecolor=PELIGROSIDAD_COLORS["media"], linewidth=1
     )
 
     # Plot del límite del barrio con estilo consistente
@@ -1204,7 +1207,7 @@ total_buildings_exposed = total_buildings_high_hazard + total_buildings_medium_h
 
 # Total de edificios en barrios
 total_buildings_in_barrios = len(buildings_with_barrios)
-percentage_exposed = round((total_buildings_exposed / total_buildings_in_barrios) * 100, 1)
+percentage_exposed = float(round((total_buildings_exposed / total_buildings_in_barrios) * 100, 1))
 
 # Top 5 barrios por exposición a peligro alto
 top_5_barrios_alta = (
@@ -1221,7 +1224,7 @@ top_5_barrios_alta = (
         buildings_with_barrios.groupby("nombre_barrio").size().reset_index(name="total_edificios_barrio"),
         on="nombre_barrio"
     )
-    .assign(porcentaje=lambda x: round((x["edificios_expuestos"] / x["total_edificios_barrio"]) * 100, 1))
+    .assign(porcentaje=lambda x: (x["edificios_expuestos"] / x["total_edificios_barrio"] * 100).round(1).astype(float))
 )
 
 # Top 5 cuencas con desglose por peligrosidad usando pivot
@@ -1243,13 +1246,11 @@ top_5_cuencas = (
 
 ```
 
-En los barrios populares de La Plata se identifican `{python} format_number(total_buildings_exposed)` edificaciones expuestas a peligros de inundación, lo que representa el `{python} percentage_exposed`% del total de edificaciones en asentamientos informales. De estas, `{python} format_number(total_buildings_high_hazard)` edificaciones se encuentran en zonas de peligro alto y `{python} format_number(total_buildings_medium_hazard)` en zonas de peligro medio.
+En los barrios populares de La Plata se identifican `{python} format_number(total_buildings_exposed)` edificiones expuestas a peligros de inundación, lo que representa el `{python} percentage_exposed`% del total de edificiones en asentamientos informales. De estas, `{python} format_number(total_buildings_high_hazard)` edificiones se encuentran en zonas de peligro alto y `{python} format_number(total_buildings_medium_hazard)` en zonas de peligro medio.
 
-La exposición se concentra principalmente en los alrededores del casco urbano de La Plata, con una distribución característica donde pocos barrios presentan exposición muy alta, seguidos por un grupo de exposición media. `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` lidera con `{python} int(top_5_barrios_alta.iloc[0]['edificios_expuestos'])` edificaciones expuestas a peligro alto (`{python} top_5_barrios_alta.iloc[0]['porcentaje']`% del barrio), seguido por `{python} top_5_barrios_alta.iloc[1]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[1]['edificios_expuestos'])` edificaciones (`{python} top_5_barrios_alta.iloc[1]['porcentaje']`%), `{python} top_5_barrios_alta.iloc[2]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[2]['edificios_expuestos'])` (`{python} top_5_barrios_alta.iloc[2]['porcentaje']`%), `{python} top_5_barrios_alta.iloc[3]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[3]['edificios_expuestos'])` (`{python} top_5_barrios_alta.iloc[3]['porcentaje']`%), y `{python} top_5_barrios_alta.iloc[4]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[4]['edificios_expuestos'])` edificaciones (`{python} top_5_barrios_alta.iloc[4]['porcentaje']`%).
+La exposición se concentra principalmente en los alrededores del casco urbano de La Plata, con una distribución característica donde pocos barrios presentan exposición muy alta, seguidos por un grupo de exposición media. `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` lidera con `{python} int(top_5_barrios_alta.iloc[0]['edificios_expuestos'])` edificiones expuestas a peligro alto (`{python} float(top_5_barrios_alta.iloc[0]['porcentaje'])`% del barrio), seguido por `{python} top_5_barrios_alta.iloc[1]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[1]['edificios_expuestos'])` edificiones (`{python} float(top_5_barrios_alta.iloc[1]['porcentaje'])`%), `{python} top_5_barrios_alta.iloc[2]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[2]['edificios_expuestos'])` (`{python} float(top_5_barrios_alta.iloc[2]['porcentaje'])`%), `{python} top_5_barrios_alta.iloc[3]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[3]['edificios_expuestos'])` (`{python} float(top_5_barrios_alta.iloc[3]['porcentaje'])`%), y `{python} top_5_barrios_alta.iloc[4]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[4]['edificios_expuestos'])` edificiones (`{python} float(top_5_barrios_alta.iloc[4]['porcentaje'])`%).
 
-A nivel de cuencas hidrográficas, `{python} top_5_cuencas.iloc[0]['Cuenca']` concentra la mayor exposición con `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_total'])` edificaciones expuestas (`{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_alta'])` a peligro alto y `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_media'])` a peligro medio), principalmente debido a la presencia de `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` y otros asentamientos importantes. Le sigue `{python} top_5_cuencas.iloc[1]['Cuenca']` con `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_total'])` edificaciones (`{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_media'])` media) y `{python} top_5_cuencas.iloc[2]['Cuenca']` con `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_total'])` edificaciones (`{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_media'])` media). Esta concentración refleja tanto la densidad de asentamientos informales como su ubicación en zonas de alto riesgo hidrológico.
-
-
+A nivel de cuencas hidrográficas, `{python} top_5_cuencas.iloc[0]['Cuenca']` concentra la mayor exposición con `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_total'])` edificiones expuestas (`{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_alta'])` a peligro alto y `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_media'])` a peligro medio), principalmente debido a la presencia de `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` y otros asentamientos importantes. Le sigue `{python} top_5_cuencas.iloc[1]['Cuenca']` con `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_total'])` edificiones (`{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_media'])` media) y `{python} top_5_cuencas.iloc[2]['Cuenca']` con `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_total'])` edificiones (`{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_media'])` media). Esta concentración refleja tanto la densidad de asentamientos informales como su ubicación en zonas de alto riesgo hidrológico.
 
 ### Exposición por barrio
 
@@ -1435,8 +1436,8 @@ show(resultado_exposicion_barrio)
 # | label: fig-exposicion-cuencas-ejes
 # | fig-cap: "Exposición por cuencas hidrográficas y ejes territoriales"
 # | fig-subcap:
-# |   - "Cuencas por edificaciones expuestas"
-# |   - "Ejes por edificaciones expuestas"
+# |   - "Cuencas por edificiones expuestas"
+# |   - "Ejes por edificiones expuestas"
 
 
 
@@ -1462,7 +1463,7 @@ bars2 = ax1.bar(
 
 ax1.set_xlabel("Cuencas", fontsize=12)
 ax1.set_ylabel("Edificios Expuestos", fontsize=12)
-ax1.set_title("Cuencas por Edificaciones Expuestas", fontsize=14, fontweight="bold")
+ax1.set_title("Cuencas por edificiones Expuestas", fontsize=14, fontweight="bold")
 ax1.set_xticks(x)
 ax1.set_xticklabels(cuenca_combined["Cuenca"], rotation=45, ha="right")
 ax1.legend(loc="upper right")
@@ -1519,7 +1520,7 @@ bars2 = ax2.bar(
 
 ax2.set_xlabel("Ejes", fontsize=12)
 ax2.set_ylabel("Edificios Expuestos", fontsize=12)
-ax2.set_title("Ejes por Edificaciones Expuestas", fontsize=14, fontweight="bold")
+ax2.set_title("Ejes por edificiones Expuestas", fontsize=14, fontweight="bold")
 ax2.set_xticks(x)
 ax2.set_xticklabels(eje_combined["eje"], rotation=45, ha="right")
 ax2.legend(loc="upper right")
@@ -1780,6 +1781,8 @@ plt.show()
 
 Los datos de huellas de edificios nos permiten realizar evaluaciones significativamente más precisas de la exposición en asentamientos informales en todo el partido y revelan una subestimación crítica en los datos oficiales. Este análisis identifica aproximadamente `{python} format_number(viviendas_faltantes)` viviendas faltantes que no están contabilizadas en los datos del RENABAP, lo que representa potencialmente entre `{python} format_number(personas_min_faltantes)` y `{python} format_number(personas_max_faltantes)` personas no contabilizadas en los asentamientos informales (usando un rango razonable de 3 a 5 personas por vivienda). Esta discrepancia tiene implicaciones profundas para la planificación de gestión de riesgo y la asignación de recursos.
 
-Nuestros resultados muestran que `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` presenta el mayor número de edificios expuestos a peligro alto con `{python} int(top_5_barrios_alta.iloc[0]['edificios_expuestos'])` edificios, seguido por `{python} top_5_barrios_alta.iloc[1]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[1]['edificios_expuestos'])`, `{python} top_5_barrios_alta.iloc[2]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[2]['edificios_expuestos'])`, `{python} top_5_barrios_alta.iloc[3]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[3]['edificios_expuestos'])`, y `{python} top_5_barrios_alta.iloc[4]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[4]['edificios_expuestos'])`. A nivel de cuencas hidrográficas, `{python} top_5_cuencas.iloc[0]['Cuenca']` concentra la mayor exposición con `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_total'])` edificios expuestos (`{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_alta'])` a peligro alto), seguida por `{python} top_5_cuencas.iloc[1]['Cuenca']` con `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_total'])` edificios (`{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_alta'])` a peligro alto).
+En los barrios populares de La Plata se identifican `{python} format_number(total_buildings_exposed)` edificiones expuestas a peligros de inundación, lo que representa el `{python} percentage_exposed`% del total de edificiones en asentamientos informales. De estas, `{python} format_number(total_buildings_high_hazard)` edificiones se encuentran en zonas de peligro alto y `{python} format_number(total_buildings_medium_hazard)` en zonas de peligro medio. La exposición se concentra principalmente en los alrededores del casco urbano de La Plata, con una distribución característica donde pocos barrios presentan exposición muy alta, seguidos por un grupo de exposición media. `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` lidera con `{python} int(top_5_barrios_alta.iloc[0]['edificios_expuestos'])` edificiones expuestas a peligro alto (`{python} float(top_5_barrios_alta.iloc[0]['porcentaje'])`% del barrio), seguido por `{python} top_5_barrios_alta.iloc[1]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[1]['edificios_expuestos'])` edificiones (`{python} float(top_5_barrios_alta.iloc[1]['porcentaje'])`%), `{python} top_5_barrios_alta.iloc[2]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[2]['edificios_expuestos'])` (`{python} float(top_5_barrios_alta.iloc[2]['porcentaje'])`%), `{python} top_5_barrios_alta.iloc[3]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[3]['edificios_expuestos'])` (`{python} float(top_5_barrios_alta.iloc[3]['porcentaje'])`%), y `{python} top_5_barrios_alta.iloc[4]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[4]['edificios_expuestos'])` edificiones (`{python} float(top_5_barrios_alta.iloc[4]['porcentaje'])`%). A nivel de cuencas hidrográficas, `{python} top_5_cuencas.iloc[0]['Cuenca']` concentra la mayor exposición con `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_total'])` edificiones expuestas (`{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_alta'])` a peligro alto y `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_media'])` a peligro medio), principalmente debido a la presencia de `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` y otros asentamientos importantes. Le sigue `{python} top_5_cuencas.iloc[1]['Cuenca']` con `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_total'])` edificiones (`{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_media'])` media) y `{python} top_5_cuencas.iloc[2]['Cuenca']` con `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_total'])` edificiones (`{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_media'])` media). Esta concentración refleja tanto la densidad de asentamientos informales como su ubicación en zonas de alto riesgo hidrológico.
+
+Además, el análisis comparativo de tasas de exposición de edificios para la Cuenca Maldonado bajo diferentes períodos de retorno, incluyendo la precipitación máxima probable (PMP) utilizada en el resto del estudio versus períodos de retorno de 100 años y 25 años, revela que la elección del período de retorno genera diferencias significativas en las tasas de exposición. Encontramos que bajo la PMP se exponen órdenes de magnitud más edificios que bajo los períodos de retorno de 25 y 100 años, lo cual es fundamental considerar al determinar qué áreas priorizar para la reubicación de residentes en asentamientos informales.
 
 Este enfoque basado en edificios no solo proporciona estimaciones más precisas y actualizadas que los métodos tradicionales de interpolación areal, sino que también demuestra la necesidad urgente de actualizar los registros oficiales de asentamientos informales. Los datos globales de huellas de edificios representan una herramienta esencial para comprender la verdadera magnitud de la población en riesgo y para la planificación efectiva de políticas de reducción de riesgo de inundación.
