@@ -19,35 +19,38 @@ Un objetivo adicional de este análisis es obtener estimaciones más precisas de
 
 ```{python}
 import matplotlib.pyplot as plt
-import contextily as ctx
 
 
-from io import BytesIO, StringIO
-from owslib.wfs import WebFeatureService
+from io import StringIO
 from shapely.geometry import box
 import geopandas as gpd
 import requests
 import pandas as pd
 import os
 
-import boto3
-import duckdb
-
 
 import numpy as np
-import s2sphere
-from botocore.config import Config
 import itables
 from itables import show
 from IPython.display import HTML, display
 
-# For scale bars and north arrows
 from matplotlib_map_utils import north_arrow, scale_bar, ScaleBar
 
+from matplotlib.patches import Patch
 
-# =============================================================================
-# ITABLES SPANISH CONFIGURATION
-# =============================================================================
+
+from shapely.ops import unary_union
+import contextily as cx
+
+
+from utils.utils import (
+    add_scale_bar_and_north_arrow,
+    add_basemap,
+    add_boundary_outline,
+    create_consistent_map,
+    wfs_to_gdf,
+    fetch_buildings,
+)
 
 # Configure Argentine Spanish for itables
 try:
@@ -57,7 +60,7 @@ try:
     spanish_config = response.json()
     itables.options.language = spanish_config
 except Exception:
-    pass  # Fall back to English if configuration fails
+    pass
 
 # Configure smaller font size for all itables
 css = """
@@ -76,78 +79,24 @@ def round_numeric_columns(df, decimals=0):
     df_display[numeric_columns] = df_display[numeric_columns].round(decimals)
     return df_display
 
+def create_consistent_map(title, crs, boundary_gdf=None, bounds=None):
+    """Create a map with consistent styling and basemap."""
+    fig, ax = setup_base_map(crs, bounds=bounds, boundary_gdf=boundary_gdf)
 
-# =============================================================================
-# CONSTANTS AND CONFIGURATION
-# =============================================================================
+    add_basemap(ax)
 
-# Coordinate Reference Systems
-USE_CRS = "EPSG:5349"  # POSGAR 2007 / Argentina 4
-WEB_MERCATOR_CRS = "EPSG:3857"  # Web Mercator for visualization
-WGS84_CRS = "EPSG:4326"  # WGS84 for API calls
+    add_scale_bar_and_north_arrow(ax)
 
-# File paths
-BASE_PATH = "/home/nissim/Documents/dev/fulbright/ciut-riesgo"
-DATA_PATH = f"{BASE_PATH}/notebooks/data"
-PELIGRO_PATH = f"{DATA_PATH}/la_plata_pelig_2023_datos_originales.geojson"
-PARTIDOS_PATH = f"{DATA_PATH}/pba_partidos.geojson"
-CUENCAS_PATH = f"{BASE_PATH}/notebooks/cuencas_buenos_aires.geojson"
-BUILDINGS_PATH = f"{BASE_PATH}/notebooks/buildings_filtered.parquet"
+    add_boundary_outline(ax, boundary_gdf)
 
-# Data URLs
-RENABAP_URL = (
-    "https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson"
-)
-PARTIDOS_WFS_URL = "https://geo.arba.gov.ar/geoserver/idera/wfs"
-CUENCAS_API_URL = "https://services1.arcgis.com/atxllciEI8CHWvwW/ArcGIS/rest/services/Cuencas_BuenosAires_2023/FeatureServer/0/query"
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
-# Data processing constants
-HAZARD_LEVELS = ["baja", "media", "alta"]
-METHOD_NAMES = ["edificios", "ghsl", "areal"]
-EXPOSURE_COLUMNS = [
-    "fam_exp_edificios",
-    "fam_exp_ghsl",
-    "fam_exp_areal",
-]
-NON_HAZARD_VALUE = "none"
-NODATA_VALUE = -200
+    ax.set_axis_off()
 
-# Column mappings and renaming
-COLUMN_MAPPINGS = {
-    "buildings_to_edificios": {"fam_expuestas_buildings": "fam_expuestas_edificios"},
-    "method_cleanup_prefix": "fam_expuestas_",
-}
-
-# Basic visualization settings (only for repeated values)
-DEFAULT_FIGSIZE = (12, 10)
-MAP_PADDING = 500
-PLASMA_CMAP = plt.cm.plasma
-
-# Color schemes for visualization
-PELIGROSIDAD_COLORS = {
-    "alta": PLASMA_CMAP(0.8),
-    "media": PLASMA_CMAP(0.5),
-    "baja": PLASMA_CMAP(0.2),
-}
-
-METHOD_COLORS = {
-    "fam_exp_areal": PLASMA_CMAP(0.8),
-    "fam_exp_ghsl": PLASMA_CMAP(0.5),
-    "fam_exp_edificios": PLASMA_CMAP(0.2),
-}
-
-# Eje mapping for watershed analysis
-EJE_MAPPING = {
-    "noreste": ["Area de Bañados", "Cuenca Arroyo Rodriguez-Don Carlos"],
-    "noroeste": ["Cuenca Arroyo Martín-Carnaval", "Cuenca Arroyo Pereyra"],
-    "central": ["Cuenca Arroyo del Gato"],
-    "sudoeste": ["Cuenca A° Maldonado", "Cuenca Río Samborombón"],
-    "sudeste": ["Cuenca Arroyo El Pescado"],
-}
-
+    return fig, ax
 
 def setup_base_map(
-    figsize=None, bounds=None, boundary_gdf=None, padding_x=None, padding_y=None
+    use_crs, figsize=None, bounds=None, boundary_gdf=None, padding_x=None, padding_y=None
 ):
     """Create figure and set up basic map boundaries with padding."""
     if figsize is None:
@@ -159,14 +108,12 @@ def setup_base_map(
 
     if bounds is None and boundary_gdf is not None:
         bounds = boundary_gdf.total_bounds
-    elif bounds is None:
-        bounds = renabap_pba_intersect.total_bounds
 
     # Convert bounds to Web Mercator for basemap compatibility
     if bounds is not None:
         # Create a temporary GeoDataFrame with the bounds to reproject
         temp_bounds = gpd.GeoDataFrame(
-            geometry=[box(bounds[0], bounds[1], bounds[2], bounds[3])], crs=USE_CRS
+            geometry=[box(bounds[0], bounds[1], bounds[2], bounds[3])], crs=use_crs
         )
         bounds_3857 = temp_bounds.to_crs(WEB_MERCATOR_CRS).total_bounds
     else:
@@ -177,221 +124,67 @@ def setup_base_map(
     ax.set_ylim(bounds_3857[1] - padding_y, bounds_3857[3] + padding_y)
     return fig, ax
 
+# =============================================================================
+# CONSTANTES Y CONFIGURACIÓN
+# =============================================================================
 
-def add_basemap(ax, zoom=13):
-    """Add CartoDB basemap to the axes."""
+USE_CRS = "EPSG:5349"  # POSGAR 2007 / Argentina 4
+WEB_MERCATOR_CRS = "EPSG:3857"  # visualization
+WGS84_CRS = "EPSG:4326"  # for API calls
 
-    ctx.add_basemap(
-        ax,
-        source=ctx.providers.CartoDB.PositronNoLabels,
-        zorder=0,
-        zoom=zoom,
-    )
+BASE_PATH = "/home/nissim/Documents/dev/fulbright/ciut-riesgo"
+DATA_PATH = f"{BASE_PATH}/notebooks/data"
+PELIGRO_PATH = f"{DATA_PATH}/la_plata_pelig_2023_datos_originales.geojson"
+PARTIDOS_PATH = f"{DATA_PATH}/pba_partidos.geojson"
+CUENCAS_PATH = f"{BASE_PATH}/notebooks/cuencas_buenos_aires.geojson"
+BUILDINGS_PATH = f"{BASE_PATH}/notebooks/buildings_filtered.parquet"
 
-    return ax
+RENABAP_URL = (
+    "https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson"
+)
+PARTIDOS_WFS_URL = "https://geo.arba.gov.ar/geoserver/idera/wfs"
+CUENCAS_API_URL = "https://services1.arcgis.com/atxllciEI8CHWvwW/ArcGIS/rest/services/Cuencas_BuenosAires_2023/FeatureServer/0/query"
+
+
+# Basic visualization settings (only for repeated values)
+DEFAULT_FIGSIZE = (12, 10)
+MAP_PADDING = 500
+PLASMA_CMAP = plt.cm.plasma
+
+# Color schemes for visualization
+PELIGROSIDAD_COLORS = {
+    "alta": PLASMA_CMAP(0.5),
+    "media": PLASMA_CMAP(0.8),
+}
+
+
+PELIGROSIDAD_LEGEND = [
+    Patch(facecolor=color, label=label) for label, color in PELIGROSIDAD_COLORS.items()
+]
+
+
+# Eje mapping for watershed analysis
+EJE_MAPPING = {
+    "noreste": ["Area de Bañados", "Cuenca Arroyo Rodriguez-Don Carlos"],
+    "noroeste": ["Cuenca Arroyo Martín-Carnaval", "Cuenca Arroyo Pereyra"],
+    "central": ["Cuenca Arroyo del Gato"],
+    "sudoeste": ["Cuenca A° Maldonado", "Cuenca Río Samborombón"],
+    "sudeste": ["Cuenca Arroyo El Pescado"],
+}
 
 
 ScaleBar.set_size("xs")
 
-def add_scale_bar_and_north_arrow(ax, location="upper right", scale_color="black", arrow_color="black"):
-    """Add a scale bar and north arrow to the map using matplotlib_map_utils."""
-    # Add scale bar using matplotlib_map_utils ScaleBar class with ticks style
-    scalebar = ScaleBar(
-        location="upper left",
-        style="ticks",
-        bar={
-            "projection": "EPSG:3857",
-            "tickcolors": scale_color,
-            "basecolors": scale_color,
-            "minor_type": "none"
-        },
-        labels={"style": "first_last"}
-    )
-    ax.add_artist(scalebar)
-    
-    # Add north arrow using matplotlib_map_utils
-    north_arrow(
-        ax,
-        location=location,
-        scale=0.3,  # Small size
-        rotation={"degrees": 0},
-        base={"facecolor": "none", "edgecolor": arrow_color, "linewidth": 1},
-        fancy=True,
-        shadow=True,
-        label=False  # Hide the "N" text
-    )
 
-
-def add_la_plata_outline(ax, color="black"):
-    """Add the outline of Partido de La Plata to a map as the top layer."""
-    la_plata_3857 = la_plata.to_crs(WEB_MERCATOR_CRS)
-    la_plata_3857.plot(
-        ax=ax,
-        facecolor="none",
-        edgecolor=color,
-        linewidth=0.5,
-        linestyle="--",
-        legend=False,
-        zorder=100,  # Ensure it's always on top
-    )
-
-
-def add_boundary_outline(ax, boundary_gdf, crs="EPSG:3857"):
-    """Add the outline of a boundary geodataframe to a map."""
-    boundary_3857 = boundary_gdf.to_crs(crs)
-    boundary_3857.plot(
-        ax=ax,
-        facecolor="none",
-        edgecolor="black",
-        linewidth=0.5,
-        linestyle="--",
-        legend=False,
-        zorder=5,
-    )
-
-
-def create_consistent_map(title, boundary_gdf=None, bounds=None):
-    """Create a map with consistent styling and basemap."""
-    fig, ax = setup_base_map(bounds=bounds, boundary_gdf=boundary_gdf)
-
-    add_basemap(ax)
-
-    add_scale_bar_and_north_arrow(ax)
-
-    if boundary_gdf is not None:
-        add_boundary_outline(ax, boundary_gdf)
-    else:
-        add_la_plata_outline(ax)
-
-    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
-
-    ax.set_axis_off()
-
-    return fig, ax
-
-
-def wfs_to_gdf(
-    wfs_url: str, layer_name: str, srs: str = "EPSG:4326"
-) -> gpd.GeoDataFrame:
-    """
-    Descarga una capa WFS y la devuelve como GeoDataFrame.
-
-    Args:
-        wfs_url (str): URL del servicio WFS.
-        layer_name (str): Nombre de la capa (typename).
-        srs (str): Código EPSG del sistema de referencia de coordenadas.
-
-    Returns:
-        gpd.GeoDataFrame: Capa descargada como GeoDataFrame.
-    """
-    wfs = WebFeatureService(url=wfs_url, version="2.0.0")
-    response = wfs.getfeature(typename=layer_name, srsname=srs)
-    gdf = gpd.read_file(BytesIO(response.read()))
-    return gdf
-
-
-def create_exposure_tidy_data(
-    data,
-    id_column,
-    peligrosidad_column,
-    method_suffix,
-    exposure_values,
-    exclude_zero=True,
-):
-    """
-    Create tidy exposure dataset in a standardized format.
-
-    Args:
-        data: DataFrame containing the base data
-        id_column: Column name for the identifier (e.g., 'id_renabap', 'Cuenca', 'eje')
-        peligrosidad_column: Column name for hazard level
-        method_suffix: Suffix for the exposure column (e.g., 'areal', 'ghsl', 'edificios')
-        exposure_values: Series or array of exposure values matching data rows
-        exclude_zero: Whether to exclude zero exposure values
-
-    Returns:
-        pd.DataFrame: Tidy format dataframe with id, peligrosidad, and exposure columns
-    """
-    tidy_data = []
-    for idx, (_, row) in enumerate(data.iterrows()):
-        exposure_value = (
-            exposure_values.iloc[idx]
-            if hasattr(exposure_values, "iloc")
-            else exposure_values[idx]
-        )
-
-        if exclude_zero and exposure_value <= 0:
-            continue
-
-        tidy_data.append(
-            {
-                id_column: row[id_column],
-                "peligrosidad": row[peligrosidad_column],
-                f"fam_expuestas_{method_suffix}": exposure_value,
-            }
-        )
-
-    return pd.DataFrame(tidy_data)
-
-
-def create_wide_exposure_dataframe(
-    areal_data, ghsl_data, buildings_data, id_columns, exclude_hazard_value="none"
-):
-    """
-    Create wide format exposure dataframe by merging tidy datasets.
-
-    Args:
-        areal_data: Tidy dataframe with areal interpolation results
-        ghsl_data: Tidy dataframe with GHSL dasymetric results
-        buildings_data: Tidy dataframe with buildings dasymetric results
-        id_columns: List of columns to merge on (e.g., ['id_renabap', 'peligrosidad'])
-        exclude_hazard_value: Hazard value to exclude from results
-
-    Returns:
-        pd.DataFrame: Wide format dataframe with all exposure methods
-    """
-    # Filter out non-hazard values
-    areal_filtered = areal_data[areal_data["peligrosidad"] != exclude_hazard_value]
-    ghsl_filtered = ghsl_data[ghsl_data["peligrosidad"] != exclude_hazard_value]
-    buildings_filtered = buildings_data[
-        buildings_data["peligrosidad"] != exclude_hazard_value
-    ]
-
-    # Apply column mapping for buildings if needed
-    if "fam_expuestas_buildings" in buildings_filtered.columns:
-        buildings_filtered = buildings_filtered.rename(
-            columns={"fam_expuestas_buildings": "fam_expuestas_edificios"}
-        )
-
-    # Merge all datasets
-    wide_data = areal_filtered.merge(ghsl_filtered, on=id_columns, how="outer").merge(
-        buildings_filtered, on=id_columns, how="outer"
-    )
-
-    # Fill NaN values with 0
-    wide_data = wide_data.fillna(0)
-
-    # Rename columns to shorter format
-    column_mapping = {
-        "fam_expuestas_areal": "fam_exp_areal",
-        "fam_expuestas_ghsl": "fam_exp_ghsl",
-        "fam_expuestas_edificios": "fam_exp_edificios",
-    }
-    wide_data = wide_data.rename(columns=column_mapping)
-
-    return wide_data
-
+# =============================================================================
+# DATA LOADING AND PREPROCESSING
+# =============================================================================
 
 response = requests.get(RENABAP_URL)
 renabap = gpd.read_file(StringIO(response.text))
 renabap_pba = renabap[renabap["provincia"] == "Buenos Aires"]
 renabap_pba = renabap_pba.to_crs(USE_CRS)
 
-peligro = gpd.read_file(PELIGRO_PATH)
-peligro = peligro.to_crs(USE_CRS)
-
-peligro_bounds = peligro.total_bounds
-peligro_bbox = box(*peligro_bounds)
 
 if os.path.exists(PARTIDOS_PATH):
     partidos = gpd.read_file(PARTIDOS_PATH)
@@ -419,6 +212,18 @@ if main_geom.geom_type == "MultiPolygon":
     la_plata.loc[la_plata.index[0], "geometry"] = largest_polygon
 
 la_plata_bbox = la_plata.geometry.iloc[0]
+
+
+peligro = gpd.read_file(PELIGRO_PATH)
+peligro = peligro.to_crs(USE_CRS)
+peligro = peligro[peligro["PELIGROSID"] != "baja"]
+
+peligro_bounds = peligro.total_bounds
+peligro_bbox = box(*peligro_bounds)
+
+peligro_la_plata = peligro.clip(la_plata)
+peligro_clipped_3857 = peligro_la_plata.to_crs(WEB_MERCATOR_CRS)
+
 
 renabap_pba_intersect = renabap_pba[
     renabap_pba.geometry.intersects(la_plata_bbox)
@@ -473,102 +278,32 @@ settle_hazard_cuencas = gpd.overlay(
 ## Fuentes de datos
 
 ### RENABAP
-El Registro Nacional de Barrios Populares (RENABAP) es producido por la Subsecretaría de Integración Socio Urbana y proporciona información sobre asentamientos informales en Argentina, incluyendo estimaciones de población y delimitaciones geográficas de estos barrios. Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
 
-```{python}
+El Registro Nacional de Barrios Populares (RENABAP) es coordinado por la Subsecretaría de Integración Socio Urbana y sistematiza la información sobre villas y asentamientos informales en Argentina. El registro incluye estimaciones de población, delimitaciones geográficas y datos sociodemográficos obtenidos a través de relevamientos territoriales realizados desde 2016 por equipos conformados por organizaciones sociales y vecinos de los barrios.
 
-```
+Este relevamiento de Viviendas Familiares se realiza mediante encuestas domiciliarias en los barrios populares registrados. La metodología combina trabajo territorial con herramientas digitales como aplicaciones móviles de geolocalización, escaneo de DNI, grabación de encuestas y cartografía editable. Cada polígono barrial se subdivide en manzanas, lotes y edificaciones, y se releva una ficha por cada vivienda habitada. Los datos son validados con organismos oficiales (RENAPER, ANSES) y sometidos a control de calidad para garantizar su precisión.
+Por otro lado, las estimaciones poblacionales para la versión 2023 fueron calculadas multiplicando la cantidad de viviendas registradas en el RENABAP por el promedio de personas por vivienda y el promedio de hogares por vivienda, según los datos del Censo Nacional de Hogares Población y Vivienda INDEC 2010 correspondiente a cada barrio. Esto limita la precisión de los datos demográficos en el contexto de procesos de transformación urbana.
+
+Más información sobre el RENABAP está disponible en el [Observatorio de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/observatorio-de-barrios-populares). Los datos fueron obtenidos a través del [Mapa de Barrios Populares](https://www.argentina.gob.ar/obras-publicas/sisu/renabap/mapa) y están disponibles para [descarga como GeoJSON](https://www.argentina.gob.ar/sites/default/files/renabap-2023-12-06.geojson).
 
 ### Peligro de inundación
 
 Los datos de peligro de inundación utilizados en este análisis fueron desarrollados por la Facultad de Ingeniería de la Universidad Nacional de La Plata como parte del Plan de Reducción del Riesgo por Inundaciones en la Región de La Plata [@romanazzi2019]. Estos datos fueron generados mediante la aplicación del modelo hidrológico-hidráulico bidimensional FLO-2D, que permitió simular la dinámica de inundación de todas las cuencas del partido de La Plata para distintos escenarios de eventos pluviométricos extremos. El modelo calcula las principales variables hidráulicas (altura del agua, velocidad y caudal) a lo largo del tiempo, y a partir de estos resultados se generaron los mapas de peligrosidad que combinan el efecto de la profundidad con la velocidad de la corriente, ofreciendo un indicador más completo que los mapas tradicionales de máximas profundidades.
 
-```{python}
-
-```
-
 ### Google-Microsoft-OSM Open Buildings
 
-Los datos de [Google-Microsoft-OSM Open Buildings - combined by VIDA](https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access) [@google_microsoft_osm_buildings] representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google's V3 Open Buildings, Microsoft's GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido [exitosamente aplicados a evaluaciones de riesgo de inundación por empresas globales de riesgo financiero como ICE](https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities), demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.
+Los datos de [Google-Microsoft-OSM Open Buildings](https://source.coop/repositories/vida/google-microsoft-osm-open-buildings/access) [@google_microsoft_osm_buildings] representan una forma más precisa de evaluar dónde se ubican los asentamientos humanos. Este conjunto de datos combina Google's V3 Open Buildings, Microsoft's GlobalMLFootprints, y OpenStreetMap building footprints, conteniendo más de 2.7 mil millones de huellas de edificios. Estos datos han sido aplicados a evaluaciones de riesgo de inundación por [empresas globales de riesgo financiero como ICE](https://www.ice.com/insights/sustainable-finance/ice-climates-exposure-datasets-understanding-how-climate-risks-impact-infrastructure-and-communities), demostrando su utilidad para mapear la exposición climática a nivel de huella de edificio individual. Sin embargo, en ausencia de información sobre si los edificios son residenciales o tienen otros usos, y sin datos sobre el número total de unidades en el edificio y habitantes por edificio, solo podemos obtener estimaciones proporcionales aproximadas de dónde se ubican las personas, sin tener una comprensión precisa de quién vive realmente allí y cuántas personas.
 
 ```{python}
-def fetch_buildings(geodataframe, temp_file="buildings_filtered.parquet"):
-    """Fetch building data for a given GeoDataFrame region"""
-
-    # Get S2 cell and bounds
-    center = geodataframe.to_crs(WEB_MERCATOR_CRS).union_all().centroid
-    center_wgs84 = (
-        gpd.GeoDataFrame(geometry=[center], crs=WEB_MERCATOR_CRS)
-        .to_crs(WGS84_CRS)
-        .geometry.iloc[0]
-    )
-    cell = s2sphere.CellId.from_lat_lng(
-        s2sphere.LatLng.from_degrees(center_wgs84.y, center_wgs84.x)
-    ).parent(10)
-    bounds = geodataframe.to_crs(WGS84_CRS).total_bounds
-
-    # Find matching S2 partition
-    s3 = boto3.client(
-        "s3",
-        endpoint_url="https://data.source.coop",
-        aws_access_key_id="",
-        aws_secret_access_key="",
-        config=Config(s3={"addressing_style": "path"}),
-    )
-
-    partitions = {
-        obj["Key"].split("/")[-1].replace(".parquet", "")
-        for obj in s3.list_objects_v2(
-            Bucket="vida",
-            Prefix="google-microsoft-osm-open-buildings/geoparquet/by_country_s2/country_iso=ARG/",
-        ).get("Contents", [])
-    }
-
-    parent_id = next(
-        str(cell.parent(level).id())
-        for level in range(10, 0, -1)
-        if str(cell.parent(level).id()) in partitions
-    )
-
-    # Setup DuckDB and query
-    con = duckdb.connect()
-    for cmd in [
-        "INSTALL spatial",
-        "LOAD spatial",
-        "INSTALL httpfs",
-        "LOAD httpfs",
-        "SET s3_region='us-east-1'",
-        "SET s3_endpoint='data.source.coop'",
-        "SET s3_use_ssl=true",
-        "SET s3_url_style='path'",
-    ]:
-        con.execute(cmd)
-
-    # Export and read back
-    query = f"""
-    COPY (SELECT * FROM 's3://vida/google-microsoft-osm-open-buildings/geoparquet/by_country_s2/country_iso=ARG/{parent_id}.parquet'
-          WHERE bbox.xmax >= {bounds[0]} AND bbox.xmin <= {bounds[2]} AND
-                bbox.ymax >= {bounds[1]} AND bbox.ymin <= {bounds[3]}
-    ) TO '{temp_file}' (FORMAT PARQUET);
-    """
-
-    con.execute(query)
-    df = pd.read_parquet(temp_file)
-    df["geometry"] = gpd.GeoSeries.from_wkb(df["geometry"])
-
-    return gpd.GeoDataFrame(df, geometry="geometry", crs=WGS84_CRS)
-
-
 if os.path.exists(BUILDINGS_PATH):
     buildings = gpd.read_parquet(BUILDINGS_PATH)
 else:
-    buildings = fetch_buildings(renabap_pba_intersect)
+    buildings = fetch_buildings(la_plata.buffer(500))
 
 
+la_plata_buffered = la_plata_bbox.buffer(500)
 buildings_proj = buildings.to_crs(USE_CRS)
-
-buildings_proj = buildings_proj.clip(la_plata)
-
+buildings_proj = buildings_proj[buildings_proj.geometry.intersects(la_plata_buffered)]
 ```
 
 ## Contexto
@@ -576,9 +311,63 @@ buildings_proj = buildings_proj.clip(la_plata)
 ```{python}
 # Calcular variables para el contexto
 total_barrios = int(len(renabap_pba_intersect))
-total_familias = int(renabap_pba_intersect['familias_aproximadas'].sum())
+total_familias = int(renabap_pba_intersect["familias_aproximadas"].sum())
 area_barrios_ha = int(renabap_total_area_ha)
 porcentaje_cobertura = float(round(percentage_coverage, 1))
+
+# Calcular barrios que intersectan con zonas de peligro
+barrios_with_peligro = gpd.sjoin(
+    renabap_pba_intersect, peligro_la_plata, how="inner", predicate="intersects"
+)
+
+# Contar barrios por nivel de peligro
+barrios_peligro_alta = int(
+    len(
+        barrios_with_peligro[barrios_with_peligro["PELIGROSID"] == "alta"][
+            "id_renabap"
+        ].unique()
+    )
+)
+barrios_peligro_media = int(
+    len(
+        barrios_with_peligro[barrios_with_peligro["PELIGROSID"] == "media"][
+            "id_renabap"
+        ].unique()
+    )
+)
+
+# Contar barrios por tipo de peligro (sin duplicados)
+barrios_peligro_summary = (
+    barrios_with_peligro.groupby("id_renabap")["PELIGROSID"]
+    .agg(["nunique", "unique"])
+    .reset_index()
+)
+barrios_peligro_summary["tiene_alta"] = barrios_peligro_summary["unique"].apply(
+    lambda x: "alta" in x
+)
+barrios_peligro_summary["tiene_media"] = barrios_peligro_summary["unique"].apply(
+    lambda x: "media" in x
+)
+
+# Contar barrios por categoría
+barrios_solo_alta = int(
+    (
+        barrios_peligro_summary["tiene_alta"] & ~barrios_peligro_summary["tiene_media"]
+    ).sum()
+)
+barrios_solo_media = int(
+    (
+        barrios_peligro_summary["tiene_media"] & ~barrios_peligro_summary["tiene_alta"]
+    ).sum()
+)
+barrios_ambos_peligros = int(
+    (
+        barrios_peligro_summary["tiene_alta"] & barrios_peligro_summary["tiene_media"]
+    ).sum()
+)
+
+# Total de barrios que intersectan con cualquier nivel de peligro (sin duplicados)
+barrios_total_peligro = int(len(barrios_with_peligro["id_renabap"].unique()))
 
 # Obtener total de edificaciones en La Plata
 total_buildings_la_plata = len(buildings_proj)
@@ -589,15 +378,20 @@ buildings_in_barrios = buildings_proj[
 ]
 total_buildings_in_barrios = len(buildings_in_barrios)
 
+viviendas_faltantes = (
+    total_buildings_in_barrios - 30753
+)  # 30753 es el número oficial de RENABAP
+
 # Calcular porcentaje de edificaciones en barrios
-buildings_percentage = float(round((total_buildings_in_barrios / total_buildings_la_plata) * 100, 1))
+buildings_percentage = float(
+    round((total_buildings_in_barrios / total_buildings_la_plata) * 100, 1)
+)
+
 
 # Helper function to format numbers with commas
 def format_number(num):
     return f"{num:,}"
 
-# Recortar peligro por la plata
-peligro_la_plata = peligro.clip(la_plata)
 
 # Calcular área para cada tipo de peligro en hectáreas
 peligro_areas = (
@@ -613,22 +407,33 @@ peligro_areas.columns = ["tipo_peligro", "area_ha"]
 peligro_areas["porcentaje"] = (peligro_areas["area_ha"] / la_plata_area_ha) * 100
 
 # Variables para cada nivel de peligro (convertir a float Python nativo)
-peligro_alta_ha = float(round(peligro_areas[peligro_areas["tipo_peligro"] == "alta"]["area_ha"].iloc[0], 1))
-peligro_alta_pct = float(round(peligro_areas[peligro_areas["tipo_peligro"] == "alta"]["porcentaje"].iloc[0], 1))
-peligro_media_ha = float(round(peligro_areas[peligro_areas["tipo_peligro"] == "media"]["area_ha"].iloc[0], 1))
-peligro_media_pct = float(round(peligro_areas[peligro_areas["tipo_peligro"] == "media"]["porcentaje"].iloc[0], 1))
-peligro_baja_ha = float(round(peligro_areas[peligro_areas["tipo_peligro"] == "baja"]["area_ha"].iloc[0], 1))
-peligro_baja_pct = float(round(peligro_areas[peligro_areas["tipo_peligro"] == "baja"]["porcentaje"].iloc[0], 1))
+peligro_alta_ha = float(
+    round(peligro_areas[peligro_areas["tipo_peligro"] == "alta"]["area_ha"].iloc[0], 1)
+)
+peligro_alta_pct = float(
+    round(
+        peligro_areas[peligro_areas["tipo_peligro"] == "alta"]["porcentaje"].iloc[0], 1
+    )
+)
+peligro_media_ha = float(
+    round(peligro_areas[peligro_areas["tipo_peligro"] == "media"]["area_ha"].iloc[0], 1)
+)
+peligro_media_pct = float(
+    round(
+        peligro_areas[peligro_areas["tipo_peligro"] == "media"]["porcentaje"].iloc[0], 1
+    )
+)
 
 # Área total cubierta por zonas de peligro (convertir a float Python nativo)
-area_total_peligro_ha = float(round(peligro_areas['area_ha'].sum(), 1))
-porcentaje_total_peligro = float(round(peligro_areas['porcentaje'].sum(), 1))
+area_total_peligro_ha = float(round(peligro_areas["area_ha"].sum(), 1))
+porcentaje_total_peligro = float(round(peligro_areas["porcentaje"].sum(), 1))
 ```
 
-Hay un total de `{python} format_number(total_barrios)` [barrios populares en el Partido de La Plata](https://lookerstudio.google.com/u/0/reporting/0a127285-4dd0-43b2-b7b2-98390bfd567f/page/klATC), que representan `{python} format_number(total_familias)` familias y 30,753 edificios. Estos barrios ocupan `{python} format_number(area_barrios_ha)` hectáreas del Partido de La Plata, o `{python} porcentaje_cobertura` por ciento del partido. El análisis de edificios revela un total de `{python} format_number(total_buildings_la_plata)` edificios en La Plata, de los cuales `{python} format_number(total_buildings_in_barrios)` se encuentran en barrios populares (`{python} buildings_percentage`% del total). En cuanto a las zonas de peligro de inundación, el territorio incluye `{python} format_number(int(peligro_alta_ha))` hectáreas de peligro alto (`{python} peligro_alta_pct`% del partido), `{python} format_number(int(peligro_media_ha))` hectáreas de peligro medio (`{python} peligro_media_pct`% del partido), y `{python} format_number(int(peligro_baja_ha))` hectáreas de peligro bajo (`{python} peligro_baja_pct`% del partido). El área total cubierta por zonas de peligro es de `{python} format_number(int(area_total_peligro_ha))` hectáreas, representando `{python} porcentaje_total_peligro`% del partido.
+Según los datos oficiales de RENABAP, hay un total de `{python} format_number(total_familias)` familias y 30,753 edificios en `{python} format_number(total_barrios)` [barrios populares en el Partido de La Plata](https://lookerstudio.google.com/u/0/reporting/0a127285-4dd0-43b2-b7b2-98390bfd567f/page/klATC). Sin embargo, estos datos fueron creados basándose en proyecciones del Censo Argentino de 2010 hacia 2023. Nuestro análisis de datos de huellas de edificios encuentra un total de `{python} format_number(total_buildings_in_barrios)` edificios en barrios populares en La Plata, representando aproximadamente `{python} format_number(viviendas_faltantes)` edificios adicionales que no están contabilizados en los datos oficiales.
+
+El territorio total del Partido de La Plata incluye `{python} format_number(int(peligro_alta_ha))` hectáreas de peligro alto (`{python} peligro_alta_pct`% del partido) y `{python} format_number(int(peligro_media_ha))` hectáreas de peligro medio (`{python} peligro_media_pct`% del partido). Respecto a la exposición de los barrios populares a peligros de inundación, se encontró que `{python} int(barrios_total_peligro)` barrios (`{python} round((barrios_total_peligro / total_barrios) * 100, 1)`% del total) intersectan con zonas de peligro. Específicamente, `{python} barrios_solo_alta` barrios intersectan únicamente con zonas de peligro alto, `{python} barrios_solo_media` barrios intersectan únicamente con zonas de peligro medio, y `{python} barrios_ambos_peligros` barrios presentan tanto peligro alto como medio dentro de sus límites.
 
 ```{python}
-# | cache: true
 # | layout-ncol: 3
 # | label: fig-fuentes-datos
 # | fig-cap: "Fuentes de datos para análisis de exposición"
@@ -639,7 +444,10 @@ Hay un total de `{python} format_number(total_barrios)` [barrios populares en el
 # | lightbox:
 # |   group: fuentes-datos
 
-fig1, ax1 = create_consistent_map("Asentamientos RENABAP en La Plata", boundary_gdf=la_plata, bounds=common_bounds)
+
+fig1, ax1 = create_consistent_map(
+    "Asentamientos RENABAP en La Plata", crs=USE_CRS, boundary_gdf=la_plata, bounds=common_bounds
+)
 
 renabap_pba_intersect_3857 = renabap_pba_intersect.to_crs(WEB_MERCATOR_CRS)
 
@@ -650,36 +458,39 @@ renabap_pba_intersect_3857.plot(
 plt.tight_layout()
 plt.show()
 
-peligro_clipped = gpd.clip(peligro, la_plata)
 
-peligro_clipped_3857 = peligro_clipped.to_crs(WEB_MERCATOR_CRS)
 
 # Reorder the categories so they map correctly to plasma colormap
 peligro_clipped_3857["PELIGROSID_ordered"] = pd.Categorical(
     peligro_clipped_3857["PELIGROSID"],
-    categories=["baja", "media", "alta"],
+    categories=["media", "alta"],
     ordered=True,
 )
 
 
-fig2, ax2 = create_consistent_map("Zonas de Peligro en La Plata", boundary_gdf=la_plata, bounds=common_bounds)
+fig2, ax2 = create_consistent_map(
+    "Zonas de Peligro en La Plata", crs=USE_CRS, boundary_gdf=la_plata, bounds=common_bounds
+)
 
+
+color_map = peligro_clipped_3857["PELIGROSID"].map(PELIGROSIDAD_COLORS)
 
 peligro_clipped_3857.plot(
     ax=ax2,
-    column="PELIGROSID_ordered",
-    cmap="plasma",
+    color=color_map,
     alpha=0.75,
-    legend=True,
-    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
+
+ax2.legend(handles=PELIGROSIDAD_LEGEND, loc="lower right")
 
 plt.tight_layout()
 plt.show()
 
 
-fig3, ax3 = create_consistent_map("Huellas de edificios", boundary_gdf=la_plata, bounds=common_bounds)
+fig3, ax3 = create_consistent_map(
+    "Huellas de edificios", crs=USE_CRS, boundary_gdf=la_plata, bounds=common_bounds
+)
 
 buildings_3857 = buildings_proj.to_crs(WEB_MERCATOR_CRS)
 
@@ -687,9 +498,8 @@ buildings_3857.plot(ax=ax3, facecolor="grey", edgecolor="none", alpha=0.7)
 
 plt.tight_layout()
 plt.show()
+
 ```
-
-
 
 ## Metodología
 
@@ -708,33 +518,87 @@ Sin embargo, dado que no conocemos exactamente cuántas familias viven en cada e
 Además, basándonos en conversaciones con planificadores tanto del ámbito académico como del gobierno municipal, nos sentimos razonablemente seguros al asumir que la mayoría o la totalidad de los edificios dentro de los límites de un asentamiento informal son probablemente edificios residenciales de uno a dos pisos como máximo. Por tanto, existe una correspondencia muy estrecha entre el número de edificios observados y el número de familias que viven en un asentamiento informal. Esto no será el caso en todos los asentamientos informales y ciertamente no es el caso en asentamientos formales densos. En este contexto particular, nos sentimos cómodos haciendo esta suposición por las razones expuestas.
 
 ```{python}
-## Análisis de exposición: edificios por barrio y cuenca por zona de peligro
-# Versión concisa con spatial joins (sin warnings)
-
-import geopandas as gpd
 
 # Definir orden de prioridad de peligro y simplificar
-hazard_priority = {"alta": 3, "media": 2, "baja": 1}
+hazard_priority = {"alta": 2, "media": 1}
 peligro_simple = peligro_la_plata.dissolve(by="PELIGROSID").reset_index()
 
-# === ANÁLISIS POR BARRIO ===
-# Spatial joins
+# Construir índices espaciales para operaciones más rápidas
+buildings_proj.sindex
+renabap_pba_intersect.sindex
+peligro_simple.sindex
+
+# Filtrar edificios a solo aquellos que podrían intersectar con barrios
+# usando intersección de cajas delimitadoras primero (mucho más rápido que intersección geométrica)
+# Crear una unión de todas las cajas delimitadoras individuales de barrios
+
+
+# Obtener cajas delimitadoras individuales para cada barrio
+barrio_boxes = []
+for _, barrio in renabap_pba_intersect.iterrows():
+    bounds = barrio.geometry.bounds
+    barrio_boxes.append(box(bounds[0], bounds[1], bounds[2], bounds[3]))
+
+# Crear una unión de todas las cajas delimitadoras de barrios
+
+
+barrios_union = unary_union(barrio_boxes)
+
+# Filtrar edificios a solo aquellos que intersectan con cualquier caja delimitadora de barrio
+buildings_candidates = buildings_proj[buildings_proj.geometry.intersects(barrios_union)]
+
+# Ahora hacer el join espacial en el dataset filtrado mucho más pequeño
 buildings_with_barrios = gpd.sjoin(
-    buildings_proj,
+    buildings_candidates,
     renabap_pba_intersect[
         ["id_renabap", "nombre_barrio", "familias_aproximadas", "geometry"]
     ],
     how="inner",
     predicate="within",
 )
+
 buildings_with_barrios = buildings_with_barrios.drop(columns=["index_right"]).copy()
 
-buildings_with_peligro_barrio = gpd.sjoin(
+# Etapa 1: Obtener edificios que están claramente dentro de zonas de peligro (rápido)
+buildings_within_hazards = gpd.sjoin(
     buildings_with_barrios,
     peligro_simple[["PELIGROSID", "geometry"]],
-    how="left",
+    how="inner",
     predicate="within",
 )
+
+# Etapa 2: Encontrar edificios que están cerca de los límites de peligro pero no dentro
+# Usar un pequeño buffer alrededor de las zonas de peligro para encontrar casos límite potenciales
+hazard_buffered = peligro_simple.copy()
+hazard_buffered["geometry"] = peligro_simple.geometry.buffer(5)  # buffer de 5 metros
+
+buildings_near_hazards = gpd.sjoin(
+    buildings_with_barrios,
+    hazard_buffered[["PELIGROSID", "geometry"]],
+    how="inner",
+    predicate="within",
+)
+
+# Encontrar casos límite (cerca de peligros pero no dentro de los peligros originales)
+within_ids = set(buildings_within_hazards.index)
+near_ids = set(buildings_near_hazards.index)
+edge_case_ids = near_ids - within_ids
+
+buildings_edge_cases = buildings_with_barrios.loc[list(edge_case_ids)]
+
+# Etapa 3: Usar intersects solo en los casos límite
+buildings_edge_cases_with_hazard = gpd.sjoin(
+    buildings_edge_cases,
+    peligro_simple[["PELIGROSID", "geometry"]],
+    how="left",
+    predicate="intersects",
+)
+
+# Combinar resultados
+buildings_with_peligro_barrio = pd.concat(
+    [buildings_within_hazards, buildings_edge_cases_with_hazard], ignore_index=True
+)
+
 
 # Resolver duplicados y contar
 buildings_barrio_final = buildings_with_peligro_barrio.dropna(
@@ -905,19 +769,21 @@ final_exposure_eje["fam_expuestas"] = (
 resultado_exposicion_eje = final_exposure_eje[
     ["eje", "PELIGROSID", "edificios_expuestos"]
 ].rename(columns={"PELIGROSID": "peligrosidad"})
+
 ```
 
 ### Limitaciones de los datos del RENABAP
 
 Los datos del RENABAP presentan limitaciones importantes que justifican el uso de huellas de edificios como alternativa más precisa. Los datos más recientes del RENABAP de 2023 subestiman significativamente el número total de familias por asentamiento informal. Estos datos se basan en proyecciones derivadas del censo de 2010, lo que ha resultado en estimaciones considerablemente desactualizadas.
 
-Nuestro análisis comparativo entre los datos del RENABAP y el conteo de huellas de edificios revela que el RENABAP subestima el número de estructuras habitacionales en un promedio del 41%. A nivel agregado, esto se traduce en aproximadamente 41,000 viviendas faltantes que no están contabilizadas en las estadísticas oficiales del RENABAP. Considerando un rango razonable de 3 a 5 personas por vivienda, esta subestimación representa entre 120,000 y 205,000 personas que podrían estar no contabilizadas en los asentamientos informales. Esta discrepancia masiva demuestra claramente las limitaciones críticas del RENABAP para la evaluación precisa de la exposición a riesgos de inundación y la planificación de políticas públicas.
-
 ```{python}
 # | label: fig-error-renabap
 # | fig-cap: "Distribución del error porcentual en las estimaciones del RENABAP comparado con estimaciones basadas en edificios"
 
-import matplotlib.pyplot as plt
+
+# =============================================================================
+# ANALYTICAL PROCESSING: RENABAP DATA VALIDATION
+# =============================================================================
 
 # Calcular familias estimadas basadas en edificios (1.1 familias por edificio)
 ratio_fam_edif = (
@@ -935,6 +801,10 @@ ratio_fam_edif["error_porcentual"] = (
     )
     / ratio_fam_edif["familias_estimadas_edificios"]
 ) * 100
+
+# =============================================================================
+# GRAPHICS: RENABAP ERROR ANALYSIS
+# =============================================================================
 
 # Crear histograma
 plt.figure(figsize=(12, 6))
@@ -958,6 +828,10 @@ plt.ylabel("Frecuencia (Número de Barrios)", fontsize=12)
 mean_error = ratio_fam_edif["error_porcentual"].mean()
 median_error = ratio_fam_edif["error_porcentual"].median()
 
+# Rango de personas no contabilizadas (3-5 personas por vivienda)
+personas_min_faltantes = round(viviendas_faltantes * 3, -3)  # Round to nearest thousand
+personas_max_faltantes = round(viviendas_faltantes * 5, -3)  # Round to nearest thousand
+
 plt.axvline(
     mean_error,
     color="black",
@@ -977,20 +851,16 @@ plt.axvline(
 plt.legend()
 plt.tight_layout()
 plt.show()
+
 ```
 
-También podemos examinar imágenes satelitales de un asentamiento informal de muestra con las huellas de edificios superpuestas para tener una idea de la veracidad de los datos. Aquí está un barrio llamado Los Pinos, en el cual mapeamos la extensión del RENABAP del barrio y las huellas de los edificios dentro de él. Las estimaciones del RENABAP dicen que este asentamiento informal tiene solo 72 familias. Nuestros datos cuentan 519 edificios. Si usamos la estimación del RENABAP de aproximadamente 1.1 familias por edificio, que es lo que calculan en sus datos originales, estamos hablando de un total de 570 familias, que es casi ocho veces más de lo que los datos del RENABAP contabilizan.
+Nuestro análisis comparativo entre los datos del RENABAP y el conteo de huellas de edificios revela que el RENABAP subestima el número de estructuras habitacionales en un promedio del `{python} int(abs(mean_error))`%. A nivel agregado, esto se traduce en aproximadamente `{python} format_number(viviendas_faltantes)` viviendas faltantes que no están contabilizadas en las estadísticas oficiales del RENABAP. Considerando un rango razonable de 3 a 5 personas por vivienda, esta subestimación representa entre `{python} format_number(personas_min_faltantes)` y `{python} format_number(personas_max_faltantes)` personas que podrían estar no contabilizadas en los asentamientos informales. Esta discrepancia masiva demuestra claramente las limitaciones críticas del RENABAP para la evaluación precisa de la exposición a riesgos de inundación y la planificación de políticas públicas.
 
+También podemos examinar imágenes satelitales de un asentamiento informal de muestra con las huellas de edificios superpuestas para tener una idea de la veracidad de los datos. Aquí está un barrio llamado Los Pinos, en el cual mapeamos la extensión del RENABAP del barrio y las huellas de los edificios dentro de él. Las estimaciones del RENABAP dicen que este asentamiento informal tiene solo 72 familias. Nuestros datos cuentan 519 edificios. Si usamos la estimación del RENABAP de aproximadamente 1.1 familias por edificio, que es lo que calculan en sus datos originales, estamos hablando de un total de 570 familias, que es casi ocho veces más de lo que los datos del RENABAP contabilizan.
 
 ```{python}
 # | label: fig-ejemplo-barrio
 # | fig-cap: "Ejemplo de discrepancia en los datos del RENABAP: el barrio Los Pinos con límites oficiales y edificaciones detectadas"
-
-import matplotlib.pyplot as plt
-import geopandas as gpd
-import contextily as cx
-from matplotlib_map_utils.core.scale_bar import ScaleBar, scale_bar
-from matplotlib_map_utils.core.north_arrow import north_arrow
 
 # Filtrar para obtener solo el barrio con id_renabap 5688
 barrio_5688 = renabap_pba_intersect[renabap_pba_intersect["id_renabap"] == 5688].copy()
@@ -1005,17 +875,17 @@ else:
     barrio_5688_3857 = barrio_5688.to_crs(WEB_MERCATOR_CRS)
     buildings_5688_3857 = buildings_5688.to_crs(WEB_MERCATOR_CRS)
     # Crear el mapa
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
     # Configurar límites basados en el barrio
     bounds = barrio_5688_3857.total_bounds
     margin = 50  # metros
     ax.set_xlim(bounds[0] - margin, bounds[2] + margin)
     ax.set_ylim(bounds[1] - margin, bounds[3] + margin)
     # Agregar basemap de contextily
-    cx.add_basemap(ax, crs="EPSG:3857", source=cx.providers.Esri.WorldImagery)
+    cx.add_basemap(ax, crs=WEB_MERCATOR_CRS, source=cx.providers.Esri.WorldImagery)
     # Plot de edificios con contorno naranja (sin fill)
     buildings_5688_3857.plot(
-        ax=ax, facecolor="none", edgecolor=PLASMA_CMAP(1), linewidth=1
+        ax=ax, facecolor="none", edgecolor=PELIGROSIDAD_COLORS["alta"], linewidth=1
     )
     # Plot del límite del barrio con estilo consistente
     barrio_5688_3857.plot(
@@ -1026,24 +896,23 @@ else:
         linestyle="--",
         zorder=10,
     )
-    
+
     ScaleBar.set_size("md")
-    
-    scale_bar(ax=ax, 
-    location="upper left", 
-    style="ticks", 
-    bar={"projection":"axis",
-    "minor_type":"none",
-    "tickcolors": "white",
-    "basecolors": "white"}, 
-    labels={"style":"first_last",
-    "textcolors":["white"],
-    "stroke_width":0},
-    units={"label":"m",
-    "textcolor":"white",
-    "stroke_width":0}
+
+    scale_bar(
+        ax=ax,
+        location="upper left",
+        style="ticks",
+        bar={
+            "projection": "axis",
+            "minor_type": "none",
+            "tickcolors": "white",
+            "basecolors": "white",
+        },
+        labels={"style": "first_last", "textcolors": ["white"], "stroke_width": 0},
+        units={"label": "m", "textcolor": "white", "stroke_width": 0},
     )
-    
+
     north_arrow(
         ax,
         location="upper right",
@@ -1052,16 +921,28 @@ else:
         base={"facecolor": "none", "edgecolor": "white", "linewidth": 1},
         fancy=True,
         shadow=True,
-        label=False  # Hide the "N" text
+        label=False,  # Hide the "N" text
     )
-    
+
     # Limpiar el mapa
     barrio_nombre = barrio_5688["nombre_barrio"].iloc[0]
-    ax.set_title(
+    familias_renabap = int(barrio_5688["familias_aproximadas"].iloc[0])
+    total_edificios = len(buildings_5688)
+
+    # Título principal usando suptitle
+    fig.suptitle(
         f"Barrio {barrio_nombre} - Límites y Edificaciones",
-        fontsize=14,
+        fontsize=16,
         fontweight="bold",
-        pad=20,
+        y=0.98,
+    )
+
+    # Subtítulo usando title
+    ax.set_title(
+        f"RENABAP: {familias_renabap} familias | Edificios detectados: {total_edificios}",
+        fontsize=12,
+        style="italic",
+        pad=30,
     )
     ax.set_xticks([])
     ax.set_yticks([])
@@ -1074,37 +955,144 @@ else:
     # Agregar leyenda simple
     legend_elements = [
         plt.Line2D([0], [0], color="white", linewidth=3, label="Límite del barrio"),
-        plt.Line2D([0], [0], color=PLASMA_CMAP(1), linewidth=1, label="Edificaciones"),
+        plt.Line2D(
+            [0],
+            [0],
+            color=PELIGROSIDAD_COLORS["alta"],
+            linewidth=1,
+            label="Edificaciones",
+        ),
     ]
     ax.legend(handles=legend_elements, loc="lower right", bbox_to_anchor=(1.0, 0.02))
     plt.tight_layout()
     plt.show()
+
+```
+
+Looking at four of the other most
+
+```{python}
+# | layout-ncol: 2
+# | label: fig-ejemplos-barrios-adicionales
+
+# IDs de los barrios a visualizar
+barrio_ids = [4577, 65, 6541, 17]
+
+for i, barrio_id in enumerate(barrio_ids):
+    # Filtrar para obtener el barrio específico
+    barrio_data = renabap_pba_intersect[
+        renabap_pba_intersect["id_renabap"] == barrio_id
+    ].copy()
+
+    if len(barrio_data) == 0:
+        print(f"No se encontró el barrio con id_renabap {barrio_id}")
+        continue
+
+    # Obtener edificios en este barrio
+    buildings_data = buildings_with_barrios[
+        buildings_with_barrios["id_renabap"] == barrio_id
+    ].copy()
+
+    # Convertir a Web Mercator
+    barrio_3857 = barrio_data.to_crs(WEB_MERCATOR_CRS)
+    buildings_3857 = buildings_data.to_crs(WEB_MERCATOR_CRS)
+
+    # Crear el mapa individual
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+
+    # Configurar límites basados en el barrio
+    bounds = barrio_3857.total_bounds
+    margin = 50  # metros
+    ax.set_xlim(bounds[0] - margin, bounds[2] + margin)
+    ax.set_ylim(bounds[1] - margin, bounds[3] + margin)
+
+    # Agregar basemap de contextily (sin atribución)
+    cx.add_basemap(
+        ax, crs=WEB_MERCATOR_CRS, source=cx.providers.Esri.WorldImagery, attribution=""
+    )
+
+    # Plot de edificios con contorno naranja (sin fill)
+    buildings_3857.plot(
+        ax=ax, facecolor="none", edgecolor=PELIGROSIDAD_COLORS["alta"], linewidth=1
+    )
+
+    # Plot del límite del barrio con estilo consistente
+    barrio_3857.plot(
+        ax=ax,
+        facecolor="none",
+        edgecolor="white",
+        linewidth=3,
+        linestyle="--",
+        zorder=10,
+    )
+
+    # Agregar escala
+    ScaleBar.set_size("md")
+    scale_bar(
+        ax=ax,
+        location="upper left",
+        style="ticks",
+        bar={
+            "projection": "axis",
+            "minor_type": "none",
+            "tickcolors": "white",
+            "basecolors": "white",
+        },
+        labels={"style": "first_last", "textcolors": ["white"], "stroke_width": 0},
+        units={"label": "m", "textcolor": "white", "stroke_width": 0},
+    )
+
+    # Agregar flecha del norte
+    north_arrow(
+        ax,
+        location="upper right",
+        scale=0.3,
+        rotation={"degrees": 0},
+        base={"facecolor": "none", "edgecolor": "white", "linewidth": 1},
+        fancy=True,
+        shadow=True,
+        label=False,
+    )
+
+    # Obtener información del barrio
+    barrio_nombre = barrio_data["nombre_barrio"].iloc[0]
+    familias_renabap = int(barrio_data["familias_aproximadas"].iloc[0])
+    total_edificios = len(buildings_data)
+
+    # Título principal usando suptitle
+    fig.suptitle(f"Barrio {barrio_nombre}", fontsize=16, fontweight="bold", y=0.98)
+
+    # Subtítulo usando title
+    ax.set_title(
+        f"RENABAP: {familias_renabap} familias | Edificios detectados: {total_edificios}",
+        fontsize=12,
+        style="italic",
+        pad=30,
+    )
+
+    # Limpiar el mapa
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+
+
 ```
 
 ## Procesamiento y resultados
 
-La exposición en asentamientos informales se concentra principalmente en los alrededores del casco urbano de La Plata. El análisis revela una distribución característica donde un número pequeño de barrios presenta exposición muy alta, seguido por un grupo de exposición media, y luego una disminución gradual. Villa Montoro lidera con 555 edificaciones expuestas a peligro alto, seguida por La Palmeira con 341, La Esperanza con 324, La Isla con 304, y Toba con 299. Otros barrios con exposición significativa incluyen Aeropuerto (258), 48 y 144 (225), San Luis (206), y El Uido (132).
-
-A nivel de cuencas hidrográficas, la Cuenca Arroyo del Gato concentra la mayor exposición con 2,662 edificaciones expuestas a peligro alto, principalmente debido a la presencia de Villa Montoro y otros asentamientos importantes. Le sigue la Cuenca A° Maldonado con 1,000 edificaciones y la Cuenca Arroyo Martín-Carnaval con 368. Esta concentración en la Cuenca Arroyo del Gato refleja tanto la densidad de asentamientos informales como su ubicación en zonas de alto riesgo hidrológico.
-
-### Exposición por barrio
-
 ```{python}
-# | label: fig-exposicion-barrios
-# | fig-cap: "Mapa de exposición de barrios populares por nivel de peligrosidad de inundación"
 
-import matplotlib.pyplot as plt
-import geopandas as gpd
-import contextily as cx
-
-# Colores para peligrosidad
-PELIGROSIDAD_COLORS = {
-    "alta": PLASMA_CMAP(0.8),
-    "media": PLASMA_CMAP(0.5),
-    "baja": PLASMA_CMAP(0.2),
-}
-
-
+# =============================================================================
+# EXPOSICIÓN POR BARRIO
+# =============================================================================
 # Preparar datos - solo alta y media
 exposure_data = resultado_exposicion_barrio[
     resultado_exposicion_barrio["peligrosidad"].isin(["alta", "media"])
@@ -1117,11 +1105,160 @@ exposure_gdf = exposure_data.merge(
 exposure_gdf = gpd.GeoDataFrame(exposure_gdf, geometry="geometry", crs=USE_CRS)
 
 # Convertir a Web Mercator para el plotting
-exposure_gdf_3857 = exposure_gdf.to_crs("EPSG:3857")
-la_plata_3857 = la_plata.to_crs("EPSG:3857")
+exposure_gdf_3857 = exposure_gdf.to_crs(WEB_MERCATOR_CRS)
+la_plata_3857 = la_plata.to_crs(WEB_MERCATOR_CRS)
+
+
+# Filtrar exposición alta y media por nombre de barrio (excluyendo "Sin Nombre")
+barrios_alta_data = (
+    resultado_exposicion_barrio[
+        (resultado_exposicion_barrio["peligrosidad"] == "alta")
+        & (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
+    ]
+    .groupby("nombre_barrio")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+    .sort_values("edificios_expuestos", ascending=False)
+    .head(10)
+)
+
+barrios_media_data = (
+    resultado_exposicion_barrio[
+        (resultado_exposicion_barrio["peligrosidad"] == "media")
+        & (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
+    ]
+    .groupby("nombre_barrio")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+)
+
+# Merge para tener ambos niveles
+barrios_combined = barrios_alta_data.merge(
+    barrios_media_data, on="nombre_barrio", how="left", suffixes=("_alta", "_media")
+)
+barrios_combined["edificios_expuestos_media"] = barrios_combined[
+    "edificios_expuestos_media"
+].fillna(0)
+
+# =============================================================================
+# EXPOSICIÓN POR CUENCA Y EJE
+# =============================================================================
+
+cuenca_alta_data = (
+    resultado_exposicion_cuenca[resultado_exposicion_cuenca["peligrosidad"] == "alta"]
+    .groupby("Cuenca")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+    .sort_values("edificios_expuestos", ascending=False)
+)
+
+cuenca_media_data = (
+    resultado_exposicion_cuenca[resultado_exposicion_cuenca["peligrosidad"] == "media"]
+    .groupby("Cuenca")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+)
+
+# Merge para tener ambos niveles
+cuenca_combined = cuenca_alta_data.merge(
+    cuenca_media_data, on="Cuenca", how="left", suffixes=("_alta", "_media")
+)
+cuenca_combined["edificios_expuestos_media"] = cuenca_combined[
+    "edificios_expuestos_media"
+].fillna(0)
+
+# === GRÁFICO DE EJES ===
+# Filtrar exposición alta y media por eje
+eje_alta_data = (
+    resultado_exposicion_eje[resultado_exposicion_eje["peligrosidad"] == "alta"]
+    .groupby("eje")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+    .sort_values("edificios_expuestos", ascending=False)
+)
+
+eje_media_data = (
+    resultado_exposicion_eje[resultado_exposicion_eje["peligrosidad"] == "media"]
+    .groupby("eje")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+)
+
+# Merge para tener ambos niveles
+eje_combined = eje_alta_data.merge(
+    eje_media_data, on="eje", how="left", suffixes=("_alta", "_media")
+)
+eje_combined["edificios_expuestos_media"] = eje_combined[
+    "edificios_expuestos_media"
+].fillna(0)
+
+# =============================================================================
+# CALCULAR ESTADÍSTICAS RESUMEN PARA EL TEXTO
+# =============================================================================
+
+# Totales de edificios expuestos (sin duplicados)
+# Los edificios que intersectan con ambos peligros ya están resueltos por prioridad en buildings_barrio_unique
+total_buildings_high_hazard = int(buildings_barrio_unique[buildings_barrio_unique["PELIGROSID"] == "alta"].shape[0])
+total_buildings_medium_hazard = int(buildings_barrio_unique[buildings_barrio_unique["PELIGROSID"] == "media"].shape[0])
+total_buildings_exposed = total_buildings_high_hazard + total_buildings_medium_hazard
+
+# Total de edificios en barrios
+total_buildings_in_barrios = len(buildings_with_barrios)
+percentage_exposed = round((total_buildings_exposed / total_buildings_in_barrios) * 100, 1)
+
+# Top 5 barrios por exposición a peligro alto
+top_5_barrios_alta = (
+    resultado_exposicion_barrio[
+        (resultado_exposicion_barrio["peligrosidad"] == "alta") & 
+        (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
+    ]
+    .groupby("nombre_barrio")["edificios_expuestos"]
+    .sum()
+    .reset_index()
+    .sort_values("edificios_expuestos", ascending=False)
+    .head(5)
+    .merge(
+        buildings_with_barrios.groupby("nombre_barrio").size().reset_index(name="total_edificios_barrio"),
+        on="nombre_barrio"
+    )
+    .assign(porcentaje=lambda x: round((x["edificios_expuestos"] / x["total_edificios_barrio"]) * 100, 1))
+)
+
+# Top 5 cuencas con desglose por peligrosidad usando pivot
+top_5_cuencas = (
+    resultado_exposicion_cuenca
+    .pivot_table(
+        index="Cuenca", 
+        columns="peligrosidad", 
+        values="edificios_expuestos", 
+        aggfunc="sum", 
+        fill_value=0
+    )
+    .reset_index()
+    .assign(edificios_expuestos_total=lambda x: x["alta"] + x["media"])
+    .rename(columns={"alta": "edificios_expuestos_alta", "media": "edificios_expuestos_media"})
+    .sort_values("edificios_expuestos_total", ascending=False)
+    .head(5)
+)
+
+```
+
+En los barrios populares de La Plata se identifican `{python} format_number(total_buildings_exposed)` edificaciones expuestas a peligros de inundación, lo que representa el `{python} percentage_exposed`% del total de edificaciones en asentamientos informales. De estas, `{python} format_number(total_buildings_high_hazard)` edificaciones se encuentran en zonas de peligro alto y `{python} format_number(total_buildings_medium_hazard)` en zonas de peligro medio.
+
+La exposición se concentra principalmente en los alrededores del casco urbano de La Plata, con una distribución característica donde pocos barrios presentan exposición muy alta, seguidos por un grupo de exposición media. `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` lidera con `{python} int(top_5_barrios_alta.iloc[0]['edificios_expuestos'])` edificaciones expuestas a peligro alto (`{python} top_5_barrios_alta.iloc[0]['porcentaje']`% del barrio), seguido por `{python} top_5_barrios_alta.iloc[1]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[1]['edificios_expuestos'])` edificaciones (`{python} top_5_barrios_alta.iloc[1]['porcentaje']`%), `{python} top_5_barrios_alta.iloc[2]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[2]['edificios_expuestos'])` (`{python} top_5_barrios_alta.iloc[2]['porcentaje']`%), `{python} top_5_barrios_alta.iloc[3]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[3]['edificios_expuestos'])` (`{python} top_5_barrios_alta.iloc[3]['porcentaje']`%), y `{python} top_5_barrios_alta.iloc[4]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[4]['edificios_expuestos'])` edificaciones (`{python} top_5_barrios_alta.iloc[4]['porcentaje']`%).
+
+A nivel de cuencas hidrográficas, `{python} top_5_cuencas.iloc[0]['Cuenca']` concentra la mayor exposición con `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_total'])` edificaciones expuestas (`{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_alta'])` a peligro alto y `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_media'])` a peligro medio), principalmente debido a la presencia de `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` y otros asentamientos importantes. Le sigue `{python} top_5_cuencas.iloc[1]['Cuenca']` con `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_total'])` edificaciones (`{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_media'])` media) y `{python} top_5_cuencas.iloc[2]['Cuenca']` con `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_total'])` edificaciones (`{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_alta'])` alta, `{python} int(top_5_cuencas.iloc[2]['edificios_expuestos_media'])` media). Esta concentración refleja tanto la densidad de asentamientos informales como su ubicación en zonas de alto riesgo hidrológico.
+
+
+
+### Exposición por barrio
+
+```{python}
+# | label: fig-exposicion-barrios
+# | fig-cap: "Mapa de exposición de barrios populares por nivel de peligrosidad de inundación"
 
 # Crear el mapa
-fig, ax = plt.subplots(figsize=(12, 10))
+fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
 # Configurar límites
 bounds = la_plata_3857.total_bounds
@@ -1131,7 +1268,7 @@ ax.set_ylim(bounds[1] - margin, bounds[3] + margin)
 
 # Agregar basemap de contextily
 cx.add_basemap(
-    ax, crs="EPSG:3857", source=cx.providers.CartoDB.PositronNoLabels, alpha=0.7
+    ax, crs=WEB_MERCATOR_CRS, source=cx.providers.CartoDB.PositronNoLabels, alpha=0.7
 )
 
 # Plot de puntos con jitter
@@ -1213,8 +1350,8 @@ legend2 = ax.legend(
     bbox_to_anchor=(1.0, 0),
 )
 
-# Agregar el contorno de La Plata como capa superior
-add_la_plata_outline(ax)
+
+add_boundary_outline(ax, la_plata_3857)
 
 # Agregar escala y flecha norte para consistencia
 add_scale_bar_and_north_arrow(ax)
@@ -1231,45 +1368,27 @@ ax.set_axis_off()
 plt.tight_layout()
 plt.show()
 
-# | label: fig-top-barrios-exposicion
-# | fig-cap: "Los 10 barrios con mayor número de edificaciones expuestas a peligros de inundación"
 
-# Filtrar exposición alta y media por nombre de barrio (excluyendo "Sin Nombre")
-barrios_alta_data = (
-    resultado_exposicion_barrio[
-        (resultado_exposicion_barrio["peligrosidad"] == "alta")
-        & (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
-    ]
-    .groupby("nombre_barrio")["edificios_expuestos"]
-    .sum()
-    .reset_index()
-    .sort_values("edificios_expuestos", ascending=False)
-    .head(10)
-)
-
-barrios_media_data = (
-    resultado_exposicion_barrio[
-        (resultado_exposicion_barrio["peligrosidad"] == "media")
-        & (resultado_exposicion_barrio["nombre_barrio"] != "Sin Nombre")
-    ]
-    .groupby("nombre_barrio")["edificios_expuestos"]
-    .sum()
-    .reset_index()
-)
-
-# Merge para tener ambos niveles
-barrios_combined = barrios_alta_data.merge(barrios_media_data, on="nombre_barrio", how="left", suffixes=("_alta", "_media"))
-barrios_combined["edificios_expuestos_media"] = barrios_combined["edificios_expuestos_media"].fillna(0)
 
 # Crear el gráfico de barras
 fig, ax = plt.subplots(figsize=(12, 8))
 x = np.arange(len(barrios_combined))
 width = 0.35
 
-bars1 = ax.bar(x - width/2, barrios_combined["edificios_expuestos_alta"], width,
-               label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
-bars2 = ax.bar(x + width/2, barrios_combined["edificios_expuestos_media"], width,
-               label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+bars1 = ax.bar(
+    x - width / 2,
+    barrios_combined["edificios_expuestos_alta"],
+    width,
+    label="Peligro Alto",
+    color=PELIGROSIDAD_COLORS["alta"],
+)
+bars2 = ax.bar(
+    x + width / 2,
+    barrios_combined["edificios_expuestos_media"],
+    width,
+    label="Peligro Medio",
+    color=PELIGROSIDAD_COLORS["media"],
+)
 
 ax.set_xlabel("Barrios", fontsize=12)
 ax.set_ylabel("Edificios Expuestos", fontsize=12)
@@ -1282,14 +1401,26 @@ ax.legend(loc="upper right")
 for bar in bars1:
     height = bar.get_height()
     if height > 0:
-        ax.text(bar.get_x() + bar.get_width()/2., height + 5, f'{int(height)}',
-                ha='center', va='bottom', fontsize=10)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 5,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
 for bar in bars2:
     height = bar.get_height()
     if height > 0:
-        ax.text(bar.get_x() + bar.get_width()/2., height + 5, f'{int(height)}',
-                ha='center', va='bottom', fontsize=10)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 5,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
 plt.tight_layout()
 plt.show()
@@ -1307,36 +1438,27 @@ show(resultado_exposicion_barrio)
 # |   - "Cuencas por edificaciones expuestas"
 # |   - "Ejes por edificaciones expuestas"
 
-# === GRÁFICO DE CUENCAS ===
-# Filtrar exposición alta y media por cuenca
-cuenca_alta_data = (
-    resultado_exposicion_cuenca[resultado_exposicion_cuenca["peligrosidad"] == "alta"]
-    .groupby("Cuenca")["edificios_expuestos"]
-    .sum()
-    .reset_index()
-    .sort_values("edificios_expuestos", ascending=False)
-)
 
-cuenca_media_data = (
-    resultado_exposicion_cuenca[resultado_exposicion_cuenca["peligrosidad"] == "media"]
-    .groupby("Cuenca")["edificios_expuestos"]
-    .sum()
-    .reset_index()
-)
-
-# Merge para tener ambos niveles
-cuenca_combined = cuenca_alta_data.merge(cuenca_media_data, on="Cuenca", how="left", suffixes=("_alta", "_media"))
-cuenca_combined["edificios_expuestos_media"] = cuenca_combined["edificios_expuestos_media"].fillna(0)
 
 # Crear gráfico de cuencas
-fig1, ax1 = plt.subplots(figsize=(10, 8))
+fig1, ax1 = plt.subplots(figsize=DEFAULT_FIGSIZE)
 x = np.arange(len(cuenca_combined))
 width = 0.35
 
-bars1 = ax1.bar(x - width/2, cuenca_combined["edificios_expuestos_alta"], width, 
-                label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
-bars2 = ax1.bar(x + width/2, cuenca_combined["edificios_expuestos_media"], width,
-                label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+bars1 = ax1.bar(
+    x - width / 2,
+    cuenca_combined["edificios_expuestos_alta"],
+    width,
+    label="Peligro Alto",
+    color=PELIGROSIDAD_COLORS["alta"],
+)
+bars2 = ax1.bar(
+    x + width / 2,
+    cuenca_combined["edificios_expuestos_media"],
+    width,
+    label="Peligro Medio",
+    color=PELIGROSIDAD_COLORS["media"],
+)
 
 ax1.set_xlabel("Cuencas", fontsize=12)
 ax1.set_ylabel("Edificios Expuestos", fontsize=12)
@@ -1349,48 +1471,51 @@ ax1.legend(loc="upper right")
 for bar in bars1:
     height = bar.get_height()
     if height > 0:
-        ax1.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}',
-                ha='center', va='bottom', fontsize=10)
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 20,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
 for bar in bars2:
     height = bar.get_height()
     if height > 0:
-        ax1.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}',
-                ha='center', va='bottom', fontsize=10)
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 20,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
 plt.tight_layout()
 plt.show()
 
-# === GRÁFICO DE EJES ===
-# Filtrar exposición alta y media por eje
-eje_alta_data = (
-    resultado_exposicion_eje[resultado_exposicion_eje["peligrosidad"] == "alta"]
-    .groupby("eje")["edificios_expuestos"]
-    .sum()
-    .reset_index()
-    .sort_values("edificios_expuestos", ascending=False)
-)
 
-eje_media_data = (
-    resultado_exposicion_eje[resultado_exposicion_eje["peligrosidad"] == "media"]
-    .groupby("eje")["edificios_expuestos"]
-    .sum()
-    .reset_index()
-)
-
-# Merge para tener ambos niveles
-eje_combined = eje_alta_data.merge(eje_media_data, on="eje", how="left", suffixes=("_alta", "_media"))
-eje_combined["edificios_expuestos_media"] = eje_combined["edificios_expuestos_media"].fillna(0)
 
 # Crear gráfico de ejes
-fig2, ax2 = plt.subplots(figsize=(10, 8))
+fig2, ax2 = plt.subplots(figsize=DEFAULT_FIGSIZE)
 x = np.arange(len(eje_combined))
 width = 0.35
 
-bars1 = ax2.bar(x - width/2, eje_combined["edificios_expuestos_alta"], width,
-                label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
-bars2 = ax2.bar(x + width/2, eje_combined["edificios_expuestos_media"], width,
-                label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+bars1 = ax2.bar(
+    x - width / 2,
+    eje_combined["edificios_expuestos_alta"],
+    width,
+    label="Peligro Alto",
+    color=PELIGROSIDAD_COLORS["alta"],
+)
+bars2 = ax2.bar(
+    x + width / 2,
+    eje_combined["edificios_expuestos_media"],
+    width,
+    label="Peligro Medio",
+    color=PELIGROSIDAD_COLORS["media"],
+)
 
 ax2.set_xlabel("Ejes", fontsize=12)
 ax2.set_ylabel("Edificios Expuestos", fontsize=12)
@@ -1403,17 +1528,30 @@ ax2.legend(loc="upper right")
 for bar in bars1:
     height = bar.get_height()
     if height > 0:
-        ax2.text(bar.get_x() + bar.get_width()/2., height + 10, f'{int(height)}',
-                ha='center', va='bottom', fontsize=10)
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 10,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
 for bar in bars2:
     height = bar.get_height()
     if height > 0:
-        ax2.text(bar.get_x() + bar.get_width()/2., height + 10, f'{int(height)}',
-                ha='center', va='bottom', fontsize=10)
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 10,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
 plt.tight_layout()
 plt.show()
+
 ```
 
 ## Comparativa de periodos de retorno
@@ -1430,151 +1568,207 @@ plt.show()
 # | lightbox:
 # |   group: escenarios-maldonado
 
+
+# =============================================================================
+# GRAPHICS: RETURN PERIOD COMPARISON
+# =============================================================================
+
 # Preparar datos de cuenca Maldonado para clipping
 cuenca_maldonado = cuencas[cuencas["Cuenca"] == "Cuenca A° Maldonado"].copy()
 
+
+# Rutas de archivos
+r100_path = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/raster verctorizados/Peligrosidad_R100_polig.shp"
+r25_path = "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/raster verctorizados/Peligrosidad_R25_polig.shp"
+
+# Color mapping para R100 y R25
+color_mapping = {
+    "Medio": PELIGROSIDAD_COLORS["media"],
+    "Alto": PELIGROSIDAD_COLORS["alta"],
+}
+
 # === MAPA PMP ===
-# Clipear peligro PMP a cuenca Maldonado
 peligro_pmp_maldonado = gpd.clip(peligro_la_plata, cuenca_maldonado)
+peligro_pmp_maldonado = peligro_pmp_maldonado[
+    peligro_pmp_maldonado["PELIGROSID"].isin(["alta", "media"])
+]
 peligro_pmp_maldonado_3857 = peligro_pmp_maldonado.to_crs(WEB_MERCATOR_CRS)
 
-# Ordenar categorías para mapeo correcto
-peligro_pmp_maldonado_3857["PELIGROSID_ordered"] = pd.Categorical(
-    peligro_pmp_maldonado_3857["PELIGROSID"],
-    categories=["baja", "media", "alta"],
-    ordered=True,
+fig1, ax1 = create_consistent_map(
+    "PMP (Precipitación Máxima Probable)", crs=USE_CRS, boundary_gdf=cuenca_maldonado
 )
-
-fig1, ax1 = create_consistent_map("PMP (Precipitación Máxima Probable)", boundary_gdf=cuenca_maldonado)
 peligro_pmp_maldonado_3857.plot(
     ax=ax1,
-    column="PELIGROSID_ordered",
-    cmap="plasma",
+    color=peligro_pmp_maldonado_3857["PELIGROSID"].map(PELIGROSIDAD_COLORS),
     alpha=0.75,
-    legend=True,
-    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
+ax1.legend(handles=PELIGROSIDAD_LEGEND, loc="lower right")
 plt.tight_layout()
 plt.show()
 
 # === MAPA R100 ===
-pelig_100_maldonado = gpd.read_file("/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/raster verctorizados/Peligrosidad_R100_polig.shp")
-pelig_100_maldonado = pelig_100_maldonado.to_crs(USE_CRS)
+pelig_100_maldonado = gpd.read_file(r100_path).to_crs(USE_CRS)
+pelig_100_maldonado = pelig_100_maldonado[
+    pelig_100_maldonado["peli"].isin(["Alto", "Medio"])
+]
+pelig_100_maldonado_clipped_3857 = gpd.clip(
+    pelig_100_maldonado, cuenca_maldonado
+).to_crs(WEB_MERCATOR_CRS)
 
-# Clipear a cuenca Maldonado
-pelig_100_maldonado_clipped = gpd.clip(pelig_100_maldonado, cuenca_maldonado)
-pelig_100_maldonado_clipped_3857 = pelig_100_maldonado_clipped.to_crs(WEB_MERCATOR_CRS)
-
-# Ordenar categorías
-pelig_100_maldonado_clipped_3857["peli_ordered"] = pd.Categorical(
-    pelig_100_maldonado_clipped_3857["peli"],
-    categories=["Bajo", "Medio", "Alto"],
-    ordered=True,
+fig2, ax2 = create_consistent_map(
+    "R100 (Período de retorno 100 años)", crs=USE_CRS, boundary_gdf=cuenca_maldonado
 )
-
-fig2, ax2 = create_consistent_map("R100 (Período de retorno 100 años)", boundary_gdf=cuenca_maldonado)
 pelig_100_maldonado_clipped_3857.plot(
     ax=ax2,
-    column="peli_ordered",
-    cmap="plasma",
+    color=pelig_100_maldonado_clipped_3857["peli"].map(color_mapping),
     alpha=0.75,
-    legend=True,
-    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
+ax2.legend(handles=PELIGROSIDAD_LEGEND, loc="lower right")
 plt.tight_layout()
 plt.show()
 
 # === MAPA R25 ===
-pelig_25_maldonado = gpd.read_file("/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/raster verctorizados/Peligrosidad_R25_polig.shp")
-pelig_25_maldonado = pelig_25_maldonado.to_crs(USE_CRS)
-
-# Clipear a cuenca Maldonado
-pelig_25_maldonado_clipped = gpd.clip(pelig_25_maldonado, cuenca_maldonado)
-pelig_25_maldonado_clipped_3857 = pelig_25_maldonado_clipped.to_crs(WEB_MERCATOR_CRS)
-
-# Ordenar categorías
-pelig_25_maldonado_clipped_3857["peli_ordered"] = pd.Categorical(
-    pelig_25_maldonado_clipped_3857["peli"],
-    categories=["Bajo", "Medio", "Alto"],
-    ordered=True,
+pelig_25_maldonado = gpd.read_file(r25_path).to_crs(USE_CRS)
+pelig_25_maldonado = pelig_25_maldonado[
+    pelig_25_maldonado["peli"].isin(["Alto", "Medio"])
+]
+pelig_25_maldonado_clipped_3857 = gpd.clip(pelig_25_maldonado, cuenca_maldonado).to_crs(
+    WEB_MERCATOR_CRS
 )
 
-fig3, ax3 = create_consistent_map("R25 (Período de retorno 25 años)", boundary_gdf=cuenca_maldonado)
+fig3, ax3 = create_consistent_map(
+    "R25 (Período de retorno 25 años)", crs=USE_CRS, boundary_gdf=cuenca_maldonado
+)
 pelig_25_maldonado_clipped_3857.plot(
     ax=ax3,
-    column="peli_ordered",
-    cmap="plasma",
+    color=pelig_25_maldonado_clipped_3857["peli"].map(color_mapping),
     alpha=0.75,
-    legend=True,
-    legend_kwds={"loc": "lower right"},
     zorder=5,
 )
+ax3.legend(handles=PELIGROSIDAD_LEGEND, loc="lower right")
 plt.tight_layout()
 plt.show()
+
 ```
 
 ```{python}
-# Comparación de escenarios de precipitación para Cuenca Maldonado
-import matplotlib.pyplot as plt
-import numpy as np
+
+# =============================================================================
+# ANALYTICAL PROCESSING: RETURN PERIOD DATA
+# =============================================================================
 
 # Helper function para procesar datos de peligro
 def process_hazard_data(file_path, buildings):
     pelig_data = gpd.read_file(file_path).to_crs(USE_CRS)
     pelig_filtered = pelig_data[pelig_data["peli"].isin(["Alto", "Medio"])].copy()
     pelig_simple = pelig_filtered.dissolve(by="peli").reset_index()
-    
-    buildings_with_peligro = gpd.sjoin(buildings, pelig_simple[["peli", "geometry"]], how="left", predicate="within")
+
+    buildings_with_peligro = gpd.sjoin(
+        buildings, pelig_simple[["peli", "geometry"]], how="left", predicate="within"
+    )
     buildings_exposed = buildings_with_peligro.dropna(subset=["peli"]).copy()
-    
+
     hazard_priority = {"Alto": 3, "Medio": 2}
-    buildings_exposed.loc[:, "prioridad"] = buildings_exposed["peli"].map(hazard_priority)
-    buildings_unique = buildings_exposed.sort_values("prioridad", ascending=False).drop_duplicates(subset=buildings_exposed.geometry.name, keep="first")
-    
-    exposicion = buildings_unique.groupby("peli").size().reset_index(name="edificios_expuestos")
+    buildings_exposed.loc[:, "prioridad"] = buildings_exposed["peli"].map(
+        hazard_priority
+    )
+    buildings_unique = buildings_exposed.sort_values(
+        "prioridad", ascending=False
+    ).drop_duplicates(subset=buildings_exposed.geometry.name, keep="first")
+
+    exposicion = (
+        buildings_unique.groupby("peli").size().reset_index(name="edificios_expuestos")
+    )
     result = {}
     for _, row in exposicion.iterrows():
-        peligro_name = "alta" if row['peli'] == "Alto" else "media"
-        result[peligro_name] = row['edificios_expuestos']
+        peligro_name = "alta" if row["peli"] == "Alto" else "media"
+        result[peligro_name] = row["edificios_expuestos"]
     return result
+
 
 buildings_maldonado = buildings_with_barrios.copy()
 
 # === DATOS DE LOS TRES ESCENARIOS ===
 # PMP
-maldonado_pmp = resultado_exposicion_cuenca[resultado_exposicion_cuenca["Cuenca"] == "Cuenca A° Maldonado"].copy()
-pmp_data = {row['peligrosidad']: int(row['edificios_expuestos']) for _, row in maldonado_pmp.iterrows()} if len(maldonado_pmp) > 0 else {}
+maldonado_pmp = resultado_exposicion_cuenca[
+    resultado_exposicion_cuenca["Cuenca"] == "Cuenca A° Maldonado"
+].copy()
+pmp_data = (
+    {
+        row["peligrosidad"]: int(row["edificios_expuestos"])
+        for _, row in maldonado_pmp.iterrows()
+    }
+    if len(maldonado_pmp) > 0
+    else {}
+)
 
 # R25 y R100
-r25_data = process_hazard_data("/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/raster verctorizados/Peligrosidad_R25_polig.shp", buildings_maldonado)
-r100_data = process_hazard_data("/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/raster verctorizados/Peligrosidad_R100_polig.shp", buildings_maldonado)
+r25_data = process_hazard_data(r25_path, buildings_maldonado)
+r100_data = process_hazard_data(r100_path, buildings_maldonado)
+
+# =============================================================================
+# GRAPHICS: FINAL COMPARISON VISUALIZATION
+# =============================================================================
 
 # === VISUALIZACIÓN COMPARATIVA ===
-escenarios = ['PMP', 'R100', 'R25']
-alta_values = [pmp_data.get('alta', 0), r100_data.get('alta', 0), r25_data.get('alta', 0)]
-media_values = [pmp_data.get('media', 0), r100_data.get('media', 0), r25_data.get('media', 0)]
+escenarios = ["PMP", "R100", "R25"]
+alta_values = [
+    pmp_data.get("alta", 0),
+    r100_data.get("alta", 0),
+    r25_data.get("alta", 0),
+]
+media_values = [
+    pmp_data.get("media", 0),
+    r100_data.get("media", 0),
+    r25_data.get("media", 0),
+]
 
 x = np.arange(len(escenarios))
 width = 0.35
 
 fig, ax = plt.subplots(figsize=(10, 6))
-bars1 = ax.bar(x - width/2, alta_values, width, label="Peligro Alto", color=PELIGROSIDAD_COLORS["alta"])
-bars2 = ax.bar(x + width/2, media_values, width, label="Peligro Medio", color=PELIGROSIDAD_COLORS["media"])
+bars1 = ax.bar(
+    x - width / 2,
+    alta_values,
+    width,
+    label="Peligro Alto",
+    color=PELIGROSIDAD_COLORS["alta"],
+)
+bars2 = ax.bar(
+    x + width / 2,
+    media_values,
+    width,
+    label="Peligro Medio",
+    color=PELIGROSIDAD_COLORS["media"],
+)
 
 ax.set_xlabel("Escenario de Precipitación", fontsize=12)
 ax.set_ylabel("Edificios Expuestos", fontsize=12)
-ax.set_title("Exposición en Cuenca Maldonado por Escenario de Precipitación", fontsize=14, fontweight="bold")
+ax.set_title(
+    "Exposición en Cuenca Maldonado por Escenario de Precipitación",
+    fontsize=14,
+    fontweight="bold",
+)
 ax.set_xticks(x)
 ax.set_xticklabels(escenarios)
 ax.legend(loc="upper right")
+
 
 def add_value_labels(bars):
     for bar in bars:
         height = bar.get_height()
         if height > 0:
-            ax.text(bar.get_x() + bar.get_width()/2., height + 20, f'{int(height)}', ha='center', va='bottom', fontsize=10)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 20,
+                f"{int(height)}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
+
 
 add_value_labels(bars1)
 add_value_labels(bars2)
@@ -1584,8 +1778,8 @@ plt.show()
 
 ## Conclusiones
 
-Los datos de huellas de edificios nos permiten realizar evaluaciones significativamente más precisas de la exposición en asentamientos informales en todo el partido y revelan una subestimación crítica en los datos oficiales. Este análisis identifica aproximadamente 41,000 viviendas faltantes que no están contabilizadas en los datos del RENABAP, lo que representa potencialmente entre 120,000 y 205,000 personas no contabilizadas en los asentamientos informales (usando un rango razonable de 3 a 5 personas por vivienda). Esta discrepancia tiene implicaciones profundas para la planificación de gestión de riesgo y la asignación de recursos.
+Los datos de huellas de edificios nos permiten realizar evaluaciones significativamente más precisas de la exposición en asentamientos informales en todo el partido y revelan una subestimación crítica en los datos oficiales. Este análisis identifica aproximadamente `{python} format_number(viviendas_faltantes)` viviendas faltantes que no están contabilizadas en los datos del RENABAP, lo que representa potencialmente entre `{python} format_number(personas_min_faltantes)` y `{python} format_number(personas_max_faltantes)` personas no contabilizadas en los asentamientos informales (usando un rango razonable de 3 a 5 personas por vivienda). Esta discrepancia tiene implicaciones profundas para la planificación de gestión de riesgo y la asignación de recursos.
 
-Nuestros resultados muestran que Villa Montoro presenta el mayor número de edificios expuestos a peligro alto con 555 edificios, seguido por La Palmeira con 341, La Esperanza con 324, La Isla con 304, y Toba con 299. A nivel de cuencas hidrográficas, la Cuenca Arroyo del Gato concentra la mayor exposición con 2,662 edificios expuestos a peligro alto, seguida por la Cuenca A° Maldonado con 1,000. En términos de ejes territoriales, el central presenta 2,662 edificios expuestos y el sudoeste 1,000.
+Nuestros resultados muestran que `{python} top_5_barrios_alta.iloc[0]['nombre_barrio']` presenta el mayor número de edificios expuestos a peligro alto con `{python} int(top_5_barrios_alta.iloc[0]['edificios_expuestos'])` edificios, seguido por `{python} top_5_barrios_alta.iloc[1]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[1]['edificios_expuestos'])`, `{python} top_5_barrios_alta.iloc[2]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[2]['edificios_expuestos'])`, `{python} top_5_barrios_alta.iloc[3]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[3]['edificios_expuestos'])`, y `{python} top_5_barrios_alta.iloc[4]['nombre_barrio']` con `{python} int(top_5_barrios_alta.iloc[4]['edificios_expuestos'])`. A nivel de cuencas hidrográficas, `{python} top_5_cuencas.iloc[0]['Cuenca']` concentra la mayor exposición con `{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_total'])` edificios expuestos (`{python} int(top_5_cuencas.iloc[0]['edificios_expuestos_alta'])` a peligro alto), seguida por `{python} top_5_cuencas.iloc[1]['Cuenca']` con `{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_total'])` edificios (`{python} int(top_5_cuencas.iloc[1]['edificios_expuestos_alta'])` a peligro alto).
 
 Este enfoque basado en edificios no solo proporciona estimaciones más precisas y actualizadas que los métodos tradicionales de interpolación areal, sino que también demuestra la necesidad urgente de actualizar los registros oficiales de asentamientos informales. Los datos globales de huellas de edificios representan una herramienta esencial para comprender la verdadera magnitud de la población en riesgo y para la planificación efectiva de políticas de reducción de riesgo de inundación.
