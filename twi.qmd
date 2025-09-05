@@ -277,8 +277,8 @@ pendiente_rad = np.radians(pendiente_remuestreada)
 datos_twi = np.log(acumulacion_xarray_reproyectada / np.tan(pendiente_rad))
 
 # Reemplazar valores infinitos y valores muy altos
-datos_twi = np.where(np.isinf(datos_twi), 25, datos_twi)
-datos_twi = np.where(datos_twi > 25, 25, datos_twi)
+datos_twi = np.where(np.isinf(datos_twi),20, datos_twi)
+datos_twi = np.where(datos_twi > 20, 20, datos_twi)
 
 twi_xarray = xr.DataArray(
     datos_twi,
