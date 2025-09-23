@@ -14,7 +14,9 @@ book:
 
   chapters:
     - index.qmd
+    - edificaciones.qmd
     - exposicion.qmd
+    - vulnerabilidad.qmd
     - suavizacion.qmd
     - renabap.qmd
     - twi.qmd

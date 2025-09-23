@@ -1,0 +1,301 @@
+---
+title: "Vulnerabilidad"
+subtitle: "Indice de privación materia en Villa del Rosario, Provincia de Córdoba"
+---
+
+## Resumen
+
+Este análisis utiliza el Índice de Privación Material de Hogares (IPMH) del Censo 2022 para evaluar la vulnerabilidad socioeconómica en Villa del Rosario, Provincia de Córdoba, Argentina.
+
+## ¿Qué es la Vulnerabilidad?
+
+La vulnerabilidad se refiere a la susceptibilidad de individuos, hogares o comunidades a sufrir daños o pérdidas ante eventos adversos. En el contexto de evaluación de riesgos climáticos, la vulnerabilidad determina la capacidad de respuesta y recuperación de las poblaciones.
+
+### Tipos de Vulnerabilidad
+
+- **Económica**: Capacidad financiera para enfrentar crisis
+- **Social**: Acceso a redes de apoyo y servicios
+- **Física**: Exposición a amenazas ambientales
+- **Institucional**: Acceso a servicios públicos y protección
+
+## Cálculo de la Vulnerabilidad
+
+### Índices de Referencia
+
+- **Social Vulnerability Index (SoVI)**: Desarrollado en Estados Unidos, combina múltiples factores socioeconómicos
+- **Social Vulnerability Index (SVI)**: Versión del CDC que incluye indicadores de raza, edad, discapacidad, y acceso a servicios
+
+### Vulnerabilidad vs. Resiliencia
+
+La vulnerabilidad representa la susceptibilidad al daño, mientras que la resiliencia es la capacidad de recuperación y adaptación.
+
+## Contexto Cultural y Disponibilidad de Datos
+
+### Limitaciones en Argentina
+
+- **Granularidad**: Datos solo a nivel de radio censal
+- **Temporalidad**: Censo 2022 desactualizado por cambios económicos recientes
+- **Precisión**: Categorización gruesa del bienestar económico
+
+### Índice de Privación Material de Hogares (IPMH)
+
+El IPMH del Censo 2022 proporciona la mejor aproximación disponible para medir vulnerabilidad socioeconómica en Argentina, a pesar de sus limitaciones.
+
+## Metodología
+
+### Medida de Vulnerabilidad Utilizada
+
+Para este análisis, calculamos simplemente la proporción de la población que experimenta cualquier nivel de pobreza según el Censo 2022. Esta es una medida cruda pero efectiva, ya que la pobreza generalmente correlaciona bien con otros tipos de vulnerabilidad que intersectan con factores como raza, género y acceso a servicios.
+
+### Clasificación de Pobreza según INDEC
+
+El índice identifica hogares según su situación de privación, distinguiendo cuatro categorías:
+
+1. **Solo con privación patrimonial**: Condiciones materiales del hogar
+2. **Solo con privación de recursos corrientes**: Ingresos económicos de los habitantes  
+3. **Con privación convergente**: Privación de hábitat y recursos corrientes simultáneamente
+4. **Sin privaciones elementales**: Hogares que no presentan privaciones según el criterio adoptado
+
+#### Dimensiones de Privación
+
+- **Condiciones materiales**: Tipo de materiales de viviendas (techos y pisos) y cuestiones sanitarias (inodoro con descarga de agua, etc.)
+- **Recursos corrientes**: Capacidad económica para adquirir bienes y servicios básicos
+
+### Limitaciones del Enfoque
+
+Aunque existen múltiples formas de analizar vulnerabilidad y el censo proporciona desagregaciones detalladas, hemos elegido la pobreza por su parsimonia y facilidad de implementación. Para análisis más específicos y políticas dirigidas, recomendamos considerar indicadores adicionales de diferentes tipos de vulnerabilidad.
+
+## Resultados
+
+```{python}
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import numpy as np
+import rasterstats
+from rasterio.features import rasterize
+from io import BytesIO
+from owslib.wfs import WebFeatureService
+
+import rioxarray
+import contextily as ctx
+from shapely.geometry import box
+import xarray as xr
+
+
+USE_CRS = "EPSG:5347"  # posgar para esperanza
+WEB_MERCATOR_CRS = "EPSG:3857"
+
+DEFAULT_FIGSIZE = (12, 10)
+MAP_PADDING = 500
+PLASMA_CMAP = plt.cm.plasma
+
+def setup_base_map(
+    figsize=None, bounds=None, boundary_gdf=None, padding_x=None, padding_y=None
+):
+    """Create figure and set up basic map boundaries with padding."""
+    if figsize is None:
+        figsize = DEFAULT_FIGSIZE
+    if padding_x is None:
+        padding_x = MAP_PADDING
+    if padding_y is None:
+        padding_y = MAP_PADDING
+
+    if bounds is None and boundary_gdf is not None:
+        bounds = boundary_gdf.total_bounds
+
+    # Convert bounds to Web Mercator for basemap compatibility
+    if bounds is not None:
+        # Create a temporary GeoDataFrame with the bounds to reproject
+        temp_bounds = gpd.GeoDataFrame(
+            geometry=[box(bounds[0], bounds[1], bounds[2], bounds[3])], crs=USE_CRS
+        )
+        bounds_3857 = temp_bounds.to_crs(WEB_MERCATOR_CRS).total_bounds
+    else:
+        bounds_3857 = bounds
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(bounds_3857[0] - padding_x, bounds_3857[2] + padding_x)
+    ax.set_ylim(bounds_3857[1] - padding_y, bounds_3857[3] + padding_y)
+    return fig, ax
+
+
+def add_basemap(ax, zoom=13):
+    """Add CartoDB basemap to the axes."""
+
+    ctx.add_basemap(
+        ax,
+        source=ctx.providers.CartoDB.PositronNoLabels,
+        zorder=0,
+        zoom=zoom,
+    )
+
+    return ax
+
+
+def add_north_arrow(ax, x=0.95, y=0.05, arrow_length=0.04):
+    """Add a north arrow to the map."""
+    ax.annotate(
+        "N",
+        xy=(x, y),
+        xytext=(x, y - arrow_length),
+        arrowprops=dict(facecolor="black", width=3, headwidth=10),
+        ha="center",
+        va="center",
+        fontsize=14,
+        xycoords=ax.transAxes,
+    )
+
+
+def add_boundary_outline(ax, boundary_gdf, crs="EPSG:3857"):
+    """Add the outline of a boundary geodataframe to a map."""
+    boundary_3857 = boundary_gdf.to_crs(crs)
+    boundary_3857.plot(
+        ax=ax,
+        facecolor="none",
+        edgecolor="black",
+        linewidth=0.5,
+        linestyle="--",
+        legend=False,
+        zorder=5,
+    )
+
+
+def create_consistent_map(title, boundary_gdf, bounds=None):
+    """Create a map with consistent styling and basemap."""
+    fig, ax = setup_base_map(bounds=bounds, boundary_gdf=boundary_gdf)
+
+    add_basemap(ax)
+
+    add_north_arrow(ax)
+
+    add_boundary_outline(ax, boundary_gdf)
+
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
+    ax.set_axis_off()
+
+    return fig, ax
+
+
+def wfs_to_gdf(
+    wfs_url: str, layer_name: str, srs: str = "EPSG:4326"
+) -> gpd.GeoDataFrame:
+    """
+    Descarga una capa WFS y la devuelve como GeoDataFrame.
+
+    Args:
+        wfs_url (str): URL del servicio WFS.
+        layer_name (str): Nombre de la capa (typename).
+        srs (str): Código EPSG del sistema de referencia de coordenadas.
+
+    Returns:
+        gpd.GeoDataFrame: Capa descargada como GeoDataFrame.
+    """
+    wfs = WebFeatureService(url=wfs_url, version="2.0.0")
+    response = wfs.getfeature(typename=layer_name, srsname=srs)
+    gdf = gpd.read_file(BytesIO(response.read()))
+    return gdf
+
+
+base_url = "https://wms.ign.gob.ar/geoserver/ign/ows"
+
+munis = wfs_to_gdf(wfs_url=base_url, layer_name="ign:municipio", srs="EPSG:4326")
+
+aoi = munis[(munis["nam"] == "Villa del Rosario") & (munis["gid"] == 2960)]
+aoi = aoi.to_crs(USE_CRS)
+```
+
+
+
+```{python}
+fig, ax = create_consistent_map(
+    "Municipio de Villa del Rosario", aoi
+)
+
+aoi_3857 = aoi.to_crs(WEB_MERCATOR_CRS)
+
+
+plt.show()
+```
+
+```{python}
+import duckdb
+import pandas as pd
+import geopandas as gpd
+
+# Setup DuckDB and query
+con = duckdb.connect()
+for cmd in [
+    "INSTALL spatial",
+    "LOAD spatial", 
+    "INSTALL httpfs",
+    "LOAD httpfs",
+    "SET s3_region='us-east-2'",  # Note: different region for your data
+]:
+    con.execute(cmd)
+
+temp_file = "privacion_data.parquet"
+
+WGS84_CRS = "EPSG:4326"
+
+bounds = aoi.to_crs(WGS84_CRS).total_bounds
+
+query = f"""
+COPY (
+    WITH privacion_data AS (
+        SELECT 
+            id_geo,
+            SUM(CASE WHEN valor_categoria IN ('2', '3', '4') THEN conteo ELSE 0 END) AS hogares_con_privacion,
+            SUM(conteo) AS total_hogares,
+            ROUND((hogares_con_privacion * 100.0) / total_hogares, 2) AS porcentaje_privacion
+        FROM 's3://arg-fulbright-data/censo-argentino-2022/censo-2022-largo.parquet'
+        WHERE codigo_variable = 'HOGAR_IPMH'
+        GROUP BY id_geo
+        HAVING total_hogares > 0
+    )
+    SELECT 
+        g.cod_2022,
+        g.prov,
+        g.depto, 
+        g.pob_tot_p,
+        g.geometry,
+        p.hogares_con_privacion,
+        p.total_hogares,
+        p.porcentaje_privacion
+    FROM 's3://arg-fulbright-data/censo-argentino-2022/radios-2022.parquet' g
+    JOIN privacion_data p ON g.cod_2022 = p.id_geo
+    WHERE ST_XMax(g.geometry) >= {bounds[0]} 
+      AND ST_XMin(g.geometry) <= {bounds[2]}
+      AND ST_YMax(g.geometry) >= {bounds[1]} 
+      AND ST_YMin(g.geometry) <= {bounds[3]}
+) TO '{temp_file}' (FORMAT PARQUET);
+"""
+
+con.execute(query)
+df = pd.read_parquet(temp_file)
+df["geometry"] = gpd.GeoSeries.from_wkb(df["geometry"])
+gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="4326")
+```
+
+```{python}
+gdf.head()
+```
+
+```{python}
+gdf.hist("porcentaje_privacion")
+```
+
+```{python}
+fig, ax = create_consistent_map(
+    "Privación por Radio Censal - Censo 2022", aoi
+)
+
+filtered_gdf_3857 = gdf.to_crs(WEB_MERCATOR_CRS)
+
+filtered_gdf_3857.plot(
+    column="POB_TOT_P", ax=ax, cmap=PLASMA_CMAP, legend=False, alpha=0.8, zorder=2
+)
+
+plt.title("Privación por Radio Censal - Censo 2022", fontsize=16, fontweight="bold", pad=20)
+plt.show()
+```
