@@ -20,6 +20,7 @@ book:
     - suavizacion.qmd
     - renabap.qmd
     - twi.qmd
+    - esperanza.qmd
     - references.qmd
 
 bibliography: references.bib
