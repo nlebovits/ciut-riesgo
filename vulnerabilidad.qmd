@@ -199,17 +199,15 @@ def wfs_to_gdf(
 
 base_url = "https://wms.ign.gob.ar/geoserver/ign/ows"
 
-munis = wfs_to_gdf(wfs_url=base_url, layer_name="ign:municipio", srs="EPSG:4326")
+dptos = wfs_to_gdf(wfs_url=base_url, layer_name="ign:departamento", srs="EPSG:4326")
 
-aoi = munis[(munis["nam"] == "Villa del Rosario") & (munis["gid"] == 2960)]
+aoi = dptos[dptos["nam"] == "Río Segundo"]
 aoi = aoi.to_crs(USE_CRS)
 ```
 
-
-
 ```{python}
 fig, ax = create_consistent_map(
-    "Municipio de Villa del Rosario", aoi
+    "Departamento de Río Segundo", aoi
 )
 
 aoi_3857 = aoi.to_crs(WEB_MERCATOR_CRS)
@@ -274,11 +272,13 @@ COPY (
 con.execute(query)
 df = pd.read_parquet(temp_file)
 df["geometry"] = gpd.GeoSeries.from_wkb(df["geometry"])
-gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="4326")
+gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="4326") 
 ```
 
 ```{python}
-gdf.head()
+# Clip census tracts to the department boundary
+# This handles cases where census tracts cross administrative boundaries
+gdf = gdf.to_crs(USE_CRS).clip(aoi)
 ```
 
 ```{python}

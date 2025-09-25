@@ -24,7 +24,7 @@ from shapely.geometry import box
 import xarray as xr
 
 
-USE_CRS = "EPSG:5347"  # posgar para esperanza
+USE_CRS = "EPSG:5349"  # posgar para esperanza
 WEB_MERCATOR_CRS = "EPSG:3857"
 
 DEFAULT_FIGSIZE = (12, 10)
@@ -144,8 +144,19 @@ base_url = "https://wms.ign.gob.ar/geoserver/ign/ows"
 
 munis = wfs_to_gdf(wfs_url=base_url, layer_name="ign:municipio", srs="EPSG:4326")
 
-esperanza = munis[munis["nam"] == "Esperanza"]
+esperanza = munis[munis["nam"] == "La Plata"]
 esperanza = esperanza.to_crs(USE_CRS)
+
+# Obtener la geometría principal
+main_geom = esperanza.geometry.iloc[0]
+
+# Si es un MultiPolygon, mantener solo el polígono más grande (el partido principal)
+# Esto elimina la pequeña isla que aparece en los datos
+if main_geom.geom_type == "MultiPolygon":
+    # Obtener todos los polígonos y mantener el que tenga mayor área
+    largest_polygon = max(main_geom.geoms, key=lambda p: p.area)
+    esperanza = esperanza.copy()  # Create a copy to avoid SettingWithCopyWarning
+    esperanza.loc[esperanza.index[0], "geometry"] = largest_polygon
 ```
 
 ## Qué es el mapeo dasimétrico?
@@ -192,8 +203,13 @@ plt.show()
 La [Capa Global de Asentamientos Humanos (Global Human Settlement Layer)](https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php) [@ghsl_pop2023a] es un conjunto de datos de resolución de 100 metros que proporciona estimaciones de población multitemporales (1975-2030) derivadas de datos censales y administrativos, informadas por la distribución y clasificación de áreas construidas. Para este análisis se utilizan los datos GHSL de 2023, que son los más recientes disponibles y los más cercanos temporalmente al Censo Argentino 2022. El GHSL ya tiene un uso científico establecido para mapear la exposición poblacional a peligros de inundación [@tellman2021]. Sin embargo, esta fuente presenta limitaciones importantes: estudios sobre modelado de riesgo de inundación con conjuntos de datos globales han demostrado que evaluar la exposición a esta escala de resolución puede llevar a sobreestimaciones de la exposición poblacional en zonas de peligro de inundación en comparación con datos de mayor resolución [@smith2019].
 
 ```{python}
+
+# esperanza_ruta = ""/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13.tif""
+
+la_plata_ruta = "/home/nissim/Downloads/spatial/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R14_C13.tif"
+
 ghsl = rioxarray.open_rasterio(
-    "/home/nissim/Documents/dev/fulbright/ciut-riesgo/notebooks/data/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13/GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R13_C13.tif",
+    la_plata_ruta,
     chunks={"x": 1024, "y": 1024},
 )
 
@@ -226,15 +242,27 @@ plt.show()
 
 geometrias = [geom for geom in datos_censales_esperanza.geometry]
 
-estadisticas = rasterstats.zonal_stats(
-    geometrias,
-    ghsl_clipped.values[0],
-    affine=ghsl_clipped.rio.transform(),
-    stats=["sum"],
-    nodata=-200,
+# Option 1: Use the same method for both
+# Replace zonal_stats with rasterize-based calculation
+raster_ghsl_full = rasterize(
+    [(geom, i+1) for i, geom in enumerate(datos_censales_esperanza.geometry)],
+    out_shape=forma_referencia,
+    transform=transformacion_referencia,
+    fill=0,
+    all_touched=True,
+    dtype=np.int32
 )
 
-totales_ghsl = [stat["sum"] if stat["sum"] is not None else 0 for stat in estadisticas]
+# Calculate totals from the rasterized version
+totales_ghsl = []
+for i in range(len(datos_censales_esperanza.geometry)):
+    polygon_mask = raster_ghsl_full == (i + 1)  # +1 because rasterize starts at 1
+    
+    # Apply both polygon mask AND exclude nodata values
+    valid_mask = polygon_mask & (raster_ghsl > 0) & (raster_ghsl != -200)
+    
+    total = np.sum(raster_ghsl[valid_mask]) if np.any(valid_mask) else 0
+    totales_ghsl.append(total)
 
 datos_censales_esperanza["estimacion_pob_ghsl"] = totales_ghsl
 

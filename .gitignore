@@ -1,5 +1,6 @@
 /_*.local
 /data/
+data/
 
 # Ignore all data files in notebooks/data directory except specific CSV files
 notebooks/data/

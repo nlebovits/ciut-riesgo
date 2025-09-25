@@ -67,7 +67,7 @@ def setup_base_map(
     return fig, ax
 
 
-def add_basemap(ax, zoom=13):
+def add_basemap(ax, zoom=13, attribution=None):
     """Add CartoDB basemap to the axes."""
 
     ctx.add_basemap(
@@ -75,6 +75,7 @@ def add_basemap(ax, zoom=13):
         source=ctx.providers.CartoDB.PositronNoLabels,
         zorder=0,
         zoom=zoom,
+        attribution=attribution,
     )
 
     return ax
@@ -128,11 +129,11 @@ def add_boundary_outline(ax, boundary_gdf, crs="EPSG:3857"):
     )
 
 
-def create_consistent_map(title, crs, boundary_gdf=None, bounds=None):
+def create_consistent_map(title, crs, boundary_gdf=None, bounds=None, attribution=None):
     """Create a map with consistent styling and basemap."""
     fig, ax = setup_base_map(crs, bounds=bounds, boundary_gdf=boundary_gdf)
 
-    add_basemap(ax)
+    add_basemap(ax, attribution=attribution)
 
     add_scale_bar_and_north_arrow(ax)
 
